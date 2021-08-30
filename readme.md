@@ -3,11 +3,11 @@ a bad language targetting mlog. aims at producing a reusable infrastructure arou
 
 example:
 ```
-fn "four" do
+fn four do
     return + 2 2
 end
 
-call "four" print
+print call four
 
 printflush getlink 0
 ```

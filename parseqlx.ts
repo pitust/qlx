@@ -8,11 +8,19 @@ printflush getlink 0`
     .replace(/\s+/g, ' ')
     .split(' ')
 
-class ast {}
+class ast {
+    constructor(public type: string, public children: (string | ast)[]) {}
+}
 
 const $ = {
-    fn(): ast {
-        return new ast()
+    fn(name: string, body: ast): ast {
+        return new ast('fnnode', [name, body])
+    },
+    block(nodes: ast[]) {
+        return new ast('blocknode', nodes)
+    },
+    return(node: ast) {
+        return new ast('return', [node])
     }
 }
 
