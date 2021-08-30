@@ -1,14 +1,6 @@
-const code = `fn four do
-return + 2 2
-end
+let code: string[]
 
-print call0 four
-
-printflush getlink 0`
-    .replace(/\s+/g, ' ')
-    .split(' ')
-
-class ast {
+export class ast {
     constructor(public type: string, public children: (string | ast)[]) {}
 }
 
@@ -20,8 +12,23 @@ const $ = {
         return new ast('blocknode', nodes)
     },
     return(node: ast) {
-        return new ast('return', [node])
-    }
+        return new ast('returnnode', [node])
+    },
+    call(tgd: string, args: ast[]) {
+        return new ast('callnode', [tgd, new ast('callargs', args)])
+    },
+    print(arg: ast) {
+        return new ast('printnode', [arg])
+    },
+    printflush(arg: ast) {
+        return new ast('printflushnode', [arg])
+    },
+    getlink(arg: ast) {
+        return new ast('getlinknode', [arg])
+    },
+    var(name: string) {
+        return new ast('varnode', [name])
+    },
 }
 
 function parsefn() {
@@ -54,13 +61,20 @@ function parsegetlink() {
     return $.getlink(parseword())
 }
 
-function parseword() {
+function parseword(): ast {
     if (code[0] == 'fn') return code.shift(), parsefn()
     if (code[0] == 'do') return code.shift(), parsedo()
     if (code[0] == 'return') return code.shift(), parsereturn()
-    if (/^code[0-9]+$/.test(code[0])) return parsecall(+code.shift().slice(4))
+    if (/^call[0-9]+$/.test(code[0])) return parsecall(+code.shift().slice(4))
     if (code[0] == 'print') return code.shift(), parseprint()
     if (code[0] == 'printflush') return code.shift(), parseprintflush()
     if (code[0] == 'getlink') return code.shift(), parsegetlink()
     return $.var(code.shift())
+}
+
+export function parseprogram(s: string): ast {
+    code = s.trim().replace(/\s+/g, ' ').split(' ')
+    const out: ast[] = []
+    while (code.length) out.push(parseword())
+    return new ast('programnode', out)
 }
