@@ -5,6 +5,7 @@ const outputs = {
 export const emit = new Proxy<Record<keyof typeof outputs, (s: string) => void>>(<any>{}, {
     get(_v, name) {
         return (str: string) => {
+            if (!str.endsWith(':')) str = '    '  + str
             outputs[<string>name].push(str)
         }
     }

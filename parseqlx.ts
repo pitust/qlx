@@ -5,8 +5,8 @@ export class ast {
 }
 
 const $ = {
-    fn(name: string, body: ast): ast {
-        return new ast('fnnode', [name, body])
+    fn(name: string, body: ast, argc: number): ast {
+        return new ast('fnnode', [name, body, ''+argc])
     },
     block(nodes: ast[]) {
         return new ast('blocknode', nodes)
@@ -26,15 +26,36 @@ const $ = {
     getlink(arg: ast) {
         return new ast('getlinknode', [arg])
     },
+    bindArg(name: string, idx: number) {
+        return new ast('bindarg', [name, ''+idx])
+    },
     var(name: string) {
         return new ast('varnode', [name])
+    },
+    binop(op: string, left: ast, right: ast) {
+        return new ast('binop', [op, left, right])
+    },
+    number(n: number) {
+        return new ast('number', ['' + n])
     },
 }
 
 function parsefn() {
     const name = code.shift()
+    let args = []
+    if (code[0] == '{') {
+        code.shift()
+        while ([...code][0] != '}') args.push(code.shift())
+        code.shift()
+    }
     const body = parseword()
-    return $.fn(name, body)
+    if (args.length) {
+        return $.fn(name, $.block([
+            ...args.map((e, i) => $.bindArg(e, i)),
+            body
+        ]), args.length)
+    }
+    return $.fn(name, body, 0)
 }
 function parsedo() {
     const nodes: ast[] = []
@@ -60,6 +81,9 @@ function parseprintflush() {
 function parsegetlink() {
     return $.getlink(parseword())
 }
+function parsebinop(name: string) {
+    return $.binop(name, parseword(), parseword())
+}
 
 function parseword(): ast {
     if (code[0] == 'fn') return code.shift(), parsefn()
@@ -69,6 +93,8 @@ function parseword(): ast {
     if (code[0] == 'print') return code.shift(), parseprint()
     if (code[0] == 'printflush') return code.shift(), parseprintflush()
     if (code[0] == 'getlink') return code.shift(), parsegetlink()
+    if (code[0] == '+') return code.shift(), parsebinop('add')
+    if (/^[0-9]+$/.test(code[0])) return $.number(+code.shift())
     return $.var(code.shift())
 }
 
