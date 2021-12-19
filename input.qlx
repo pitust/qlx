@@ -4,4 +4,4 @@ else
     print "Disabled!"
 end
 
-printflush getlink 0
+printflush @message1
