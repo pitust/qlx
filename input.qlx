@@ -19,7 +19,7 @@ fn i18n_print { s }
 end
 
 if sense.enabled @switch1 do
-    i18n_print/1 :i18n_broken
+    i18n_print/1 :i18n_on
 else
     i18n_print/1 :i18n_off
 end
