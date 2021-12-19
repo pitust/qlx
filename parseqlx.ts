@@ -9,6 +9,12 @@ export function lex(s: string): string[] {
             line += 1
             column = 1
         }
+        if (s.startsWith('//')) {
+            s = s.split('\n').slice(1).join('\n')
+            line += 1
+            column = 1
+            continue
+        }
         if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.]+|"([^\s"]*| )")/.test(s)) {
             const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.]+|"([^\s"]*| )")/.exec(s)![0]
             lexemes.push(lexeme)
@@ -19,12 +25,6 @@ export function lex(s: string): string[] {
         if (/\s/.test(s[0])) {
             s = s.slice(1)
             column += 1
-            continue
-        }
-        if (s.startsWith('//')) {
-            s = s.split('\n').slice(1).join('\n')
-            line += 1
-            column = 1
             continue
         }
         console.log('%o', s)
@@ -90,7 +90,7 @@ function parsefn() {
         while ([...code][0] != '}') args.push(code.shift())
         code.shift()
     }
-    const body = parseword()
+    const body = parsedo()
     if (args.length) {
         return $.fn(name, $.block([
             ...args.map((e, i) => $.bindArg(e, i)),
@@ -102,15 +102,16 @@ function parsefn() {
 function parsedo() {
     const nodes: ast[] = []
     while (code[0] != 'end' && code[0] != 'else') nodes.push(parseword())
-    if (code[0] != 'else') code.shift()
+    if (code[0] != 'else') assert(code.shift() == 'end')
     return $.block(nodes)
 }
 function parsereturn() {
     return $.return(parseword())
 }
-function parsecall(n: number) {
+function parsecall(aa: [string, string]) {
+    const n = +aa[1]
     const args: ast[] = []
-    const tgd = code.shift()
+    const tgd = aa[0]
     for (let i = 0; i < n; i++) args.push(parseword())
     return $.call(tgd, args)
 }
@@ -132,7 +133,8 @@ function parsebinop(name: string) {
 function parseif() {
     const cond = parseword()
     assert(code[0] == 'do');
-    code = code.slice(1)
+    // this is needed so that the cond succeeds, as parseword/0 modifies `code` without typescript knowing.
+    code = code
     const cons = parseword()
     if (code[0] == 'else') {
         code.shift()
@@ -148,13 +150,14 @@ function parselet() {
 }
 
 function parseword(): ast {
+    if (code[0] == 'end') { console.log('error: end in the top level scope!'); process.exit(1) }
     if (code[0] == '+') return code.shift(), parsebinop('add')
     if (code[0] == '-') return code.shift(), parsebinop('sub')
     if (code[0] == '*') return code.shift(), parsebinop('mul')
     if (code[0] == '/') return code.shift(), parsebinop('div')
-    if (code[0] == '==') return code.shift(), parsebinop('eq')
+    if (code[0] == '==') return code.shift(), parsebinop('equal')
     if (code[0][0] == '"') return new ast('blox', [code.shift()])
-    if (/^call[0-9]+$/.test(code[0])) return parsecall(+code.shift().slice(4))
+    if (/^[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0])) return parsecall(<[string, string]>code.shift().split('/'))
     if (code[0] == 'fn') return code.shift(), parsefn()
     if (code[0] == 'do') return code.shift(), parsedo()
     if (code[0] == 'return') return code.shift(), parsereturn()
@@ -179,5 +182,6 @@ export function parseprogram(s: string): ast {
     code = lex(s)
     const out: ast[] = []
     while (code.length) out.push(parseword())
+    console.log(out)
     return new ast('programnode', out)
 }

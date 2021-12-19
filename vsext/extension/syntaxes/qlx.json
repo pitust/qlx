@@ -21,15 +21,19 @@
             "patterns": [
                 {
                     "name": "keyword.operand.qlx",
-                    "match": "(?<![a-zA-Z0-9_])(fn|do|while|end|return|if|else|let|call[0-9]+)(?![a-zA-Z0-9_])|:"
+                    "match": "(?<![a-zA-Z0-9_])(fn|do|while|end|return|if|else|let)(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "entity.name.function",
-                    "match": "(?<![a-zA-Z0-9_])(print|printflush|getlink|read|draw\\.line|draw\\.clear|draw\\.flush|sense\\.[a-z]+)(?![a-zA-Z0-9_])|:"
+                    "match": "(?<![a-zA-Z0-9_])(print|printflush|getlink|read|draw\\.line|draw\\.clear|draw\\.flush|sense\\.[a-z]+)(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "constant.language.boolean.true.qlx",
-                    "match": "(?<![a-zA-Z0-9_])(true|false)(?![a-zA-Z0-9_])|:"
+                    "match": "(?<![a-zA-Z0-9_])(true|false)(?![a-zA-Z0-9_])"
+                },
+                {
+                    "name": "constant.language.null.ts",
+                    "match": "(?<![a-zA-Z0-9_])null(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "constant.numeric.qlx",
@@ -41,7 +45,7 @@
                 },
                 {
                     "name": "entity.name.function",
-                    "match": "(?<=call[0-9]+\\s+)[a-zA-Z_][a-zA-Z_0-9]*"
+                    "match": "(?<![a-zA-Z0-9_])[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "entity.name.function",
@@ -57,7 +61,7 @@
                 },
                 {
                     "name": "variable.parameter.qlx",
-                    "match": "(?<={\\s+)([a-zA-Z_][A-Za-z_0-9]*\\s+)}"
+                    "match": "(?<={\\s+)([a-zA-Z_][A-Za-z_0-9]*\\s+)(?=})"
                 },
                 {
                     "name": "variable.other.readwrite.qlx",

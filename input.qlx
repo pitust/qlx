@@ -1,7 +1,22 @@
+let i18n_on = 1 // "Enabled!"
+let i18n_off = 0 // "Disabled!"
+
+fn i18n_interpolate { s }
+    if == s 0 do return "Disabled!" end
+    if == s 1 do return "Enabled!" end
+    return "i18nfailed"
+end
+
+fn i18n_print { s }
+    print i18n_interpolate/1 s
+
+    return null
+end
+
 if sense.enabled @switch1 do
-    print "Enabled!"
+    i18n_print/1 i18n_on
 else
-    print "Disabled!"
+    i18n_print/1 i18n_off
 end
 
 printflush @message1

@@ -129,6 +129,7 @@ function compilenode(node: ast): string {
         return `t.${tix}`
     }
     if (node.type == 'varnode') {
+        if (node.children[0] == 'null') return 'null'
         if (!ctx.has(thestr(node.children[0]))) {
             console.log('missing var:', thestr(node.children[0]))
             process.exit(1)
@@ -137,10 +138,13 @@ function compilenode(node: ast): string {
         if (varref[0] == 'global') {
             return `g.${varref[1]}`
         }
+        if (varref[0] == 'global_temp') {
+            return `${varref[1]}`
+        }
         if (varref[0] == 'local') {
             return varref[1]
         }
-        assert.fail(`todo: compilenode(varnode { ${node.children[0]} })`)
+        assert.fail(`todo: compilenode(varnode { ${node.children[0]} }) -m${varref[0]}`)
     }
     if (node.type == 'number') {
         return `${node.children[0]}`
