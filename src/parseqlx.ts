@@ -1,4 +1,5 @@
-import assert from "assert"
+import assert from 'assert'
+import { checkForMixin } from './plugins'
 
 export function lex(s: string): string[] {
     let lexemes: string[] = []
@@ -15,8 +16,8 @@ export function lex(s: string): string[] {
             column = 1
             continue
         }
-        if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.]+|"([^\s"]*| )")/.test(s)) {
-            const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.]+|"([^\s"]*| )")/.exec(s)![0]
+        if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.\:]+|"([^\s"]| )*")/.test(s)) {
+            const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.\:]+|"([^\s"]| )*")/.exec(s)![0]
             lexemes.push(lexeme)
             s = s.slice(lexeme.length)
             column += lexeme.length
@@ -34,7 +35,6 @@ export function lex(s: string): string[] {
     return lexemes
 }
 
-
 let code: string[]
 
 export class ast {
@@ -42,7 +42,7 @@ export class ast {
 }
 const $ = {
     fn(name: string, body: ast, argc: number): ast {
-        return new ast('fnnode', [name, body, ''+argc])
+        return new ast('fnnode', [name, body, '' + argc])
     },
     block(nodes: ast[]) {
         return new ast('blocknode', nodes)
@@ -66,7 +66,7 @@ const $ = {
         return new ast('getlinknode', [arg])
     },
     bindArg(name: string, idx: number) {
-        return new ast('bindarg', [name, ''+idx])
+        return new ast('bindarg', [name, '' + idx])
     },
     var(name: string) {
         return new ast('varnode', [name])
@@ -79,23 +79,23 @@ const $ = {
     },
     if(cond: ast, cons: ast, alt: ast) {
         return new ast('if', [cond, cons, alt])
-    }
+    },
+    while(cond: ast, body: ast) {
+        return new ast('while', [cond, body])
+    },
 }
 
 function parsefn() {
-    const name = code.shift()
+    const name = code.shift()!
     let args = []
     if (code[0] == '{') {
         code.shift()
-        while ([...code][0] != '}') args.push(code.shift())
+        while ([...code][0] != '}') args.push(code.shift()!)
         code.shift()
     }
     const body = parsedo()
     if (args.length) {
-        return $.fn(name, $.block([
-            ...args.map((e, i) => $.bindArg(e, i)),
-            body
-        ]), args.length)
+        return $.fn(name, $.block([...args.map((e, i) => $.bindArg(e, i)), body]), args.length)
     }
     return $.fn(name, body, 0)
 }
@@ -132,7 +132,7 @@ function parsebinop(name: string) {
 }
 function parseif() {
     const cond = parseword()
-    assert(code[0] == 'do');
+    assert(code[0] == 'do')
     // this is needed so that the cond succeeds, as parseword/0 modifies `code` without typescript knowing.
     code = code
     const cons = parseword()
@@ -143,38 +143,106 @@ function parseif() {
     }
     return $.if(cond, cons, $.block([]))
 }
+function parsewhile() {
+    const cond = parseword()
+    assert(code[0] == 'do')
+    // this is needed so that the cond succeeds, as parseword/0 modifies `code` without typescript knowing.
+    code = code
+    const cons = parseword()
+    return $.while(cond, cons)
+}
+function parseswitch() {
+    const cases: ast[] = []
+    let dfl: ast = $.block([]),
+        haddfl = false
+    
+    const target = parseword()
+
+    loop: while (true) {
+        switch (code.shift()!) {
+            case 'case':
+                const cond = parseword()
+                const body = parseword()
+                cases.push(new ast('case', [cond, body]))
+                break
+            case 'default':
+                if (haddfl) {
+                    console.log('error: default redeclared!')
+                    process.exit(1)
+                }
+                dfl = parseword()
+                haddfl = true
+                break
+            case 'end':
+                break loop
+        }
+    }
+
+    return new ast('switch', [
+        target,
+        new ast('cases', cases),
+        dfl
+    ])
+}
 function parselet() {
-    const c = code.shift()
+    const c = code.shift()!
     assert(code.shift() == '=')
     return new ast('let', [c, parseword()])
 }
+const map = new Map<string, number>()
+const genuid = (
+    id => () =>
+        id++
+)(/* nice big offset */ 0x4141)
+function uid(s: string) {
+    if (!map.has(s)) {
+        map.set(s, genuid())
+        checkForMixin<[string, number], void>('@qlx/parse:create-atom', [s, map.get(s)!])
+    }
+
+    return map.get(s)!
+}
 
 function parseword(): ast {
-    if (code[0] == 'end') { console.log('error: end in the top level scope!'); process.exit(1) }
+    if (code[0] == 'end') {
+        console.log('error: end in the top level scope!')
+        process.exit(1)
+    }
     if (code[0] == '+') return code.shift(), parsebinop('add')
     if (code[0] == '-') return code.shift(), parsebinop('sub')
     if (code[0] == '*') return code.shift(), parsebinop('mul')
     if (code[0] == '/') return code.shift(), parsebinop('div')
     if (code[0] == '==') return code.shift(), parsebinop('equal')
-    if (code[0][0] == '"') return new ast('blox', [code.shift()])
-    if (/^[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0])) return parsecall(<[string, string]>code.shift().split('/'))
+    if (code[0][0] == '"') return new ast('blox', [code.shift()!])
+    if (/^[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0]))
+        return parsecall(<[string, string]>code.shift()!.split('/'))
     if (code[0] == 'fn') return code.shift(), parsefn()
     if (code[0] == 'do') return code.shift(), parsedo()
     if (code[0] == 'return') return code.shift(), parsereturn()
+    if (code[0] == 'true') return code.shift(), new ast('blox', ['1'])
+    if (code[0] == 'false') return code.shift(), new ast('blox', ['0'])
     if (code[0] == 'print') return code.shift(), parseprint()
     if (code[0] == 'printflush') return code.shift(), parseprintflush()
     if (code[0] == 'getlink') return code.shift(), parsegetlink()
     if (code[0] == 'if') return code.shift(), parseif()
+    if (code[0] == 'while') return code.shift(), parsewhile()
+    if (code[0] == 'switch') return code.shift(), parseswitch()
     if (code[0] == 'let') return code.shift(), parselet()
-    if (code[0] == 'draw.line') return code.shift(), new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
-    if (code[0] == 'draw.clear') return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
+    if (code[0] == 'draw.line')
+        return (
+            code.shift(), new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
+        )
+    if (code[0] == 'draw.clear')
+        return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
     if (code[0] == 'draw.flush') return code.shift(), parsedrawflush()
     if (code[0] == 'read') return code.shift(), new ast('memread', [parseword(), parseword()])
-    if (code[0][0] == '@') return new ast('blox', [code.shift().slice(1)])
-    if (code[0].startsWith('sense.')) return new ast('sense', [code.shift().slice(6), parseword()])
-    if (code[0].startsWith('seton')) return code.shift(), new ast('seton', [parseword(), parseword()])
-    if (/^[0-9]+$/.test(code[0])) return $.number(+code.shift())
-    return $.var(code.shift())
+    if (code[0][0] == '@') return new ast('blox', [code.shift()!.slice(1)])
+    if (code[0].startsWith('sense.')) return new ast('sense', [code.shift()!.slice(6), parseword()])
+    if (code[0].startsWith('seton'))
+        return code.shift(), new ast('seton', [parseword(), parseword()])
+    if (/^[0-9]+$/.test(code[0])) return $.number(+code.shift()!)
+    if (code[0][0] == ':') return $.number(uid(code.shift()!.slice(1)))
+    return $.var(code.shift()!)
 }
 
 export function parseprogram(s: string): ast {
@@ -182,6 +250,5 @@ export function parseprogram(s: string): ast {
     code = lex(s)
     const out: ast[] = []
     while (code.length) out.push(parseword())
-    console.log(out)
     return new ast('programnode', out)
 }

@@ -21,7 +21,7 @@
             "patterns": [
                 {
                     "name": "keyword.operand.qlx",
-                    "match": "(?<![a-zA-Z0-9_])(fn|do|while|end|return|if|else|let)(?![a-zA-Z0-9_])"
+                    "match": "(?<![a-zA-Z0-9_])(fn|switch|case|default|do|while|end|return|if|else|let)(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "entity.name.function",

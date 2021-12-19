@@ -1,0 +1,7 @@
+#!/bin/sh
+cat >/tmp/mlogdeploy.stage.txt
+mv /tmp/mlogdeploy.stage.txt /tmp/mlogdeploy.txt
+while [ -f /tmp/mlogdeploy.txt ]; do
+    true
+done
+echo "Deployed!"

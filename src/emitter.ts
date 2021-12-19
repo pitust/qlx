@@ -6,7 +6,7 @@ export const emit = new Proxy<Record<keyof typeof outputs, (s: string) => void>>
     get(_v, name) {
         return (str: string) => {
             if (!str.endsWith(':')) str = '    '  + str
-            outputs[<string>name].push(str)
+            outputs[name as keyof typeof outputs].push(str)
         }
     }
 })
