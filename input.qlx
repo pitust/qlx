@@ -1,7 +1,7 @@
-fn four { arg } do
-    return + arg 2
+if sense.enabled @switch1 do
+    print "Enabled!"
+else
+    print "Disabled!"
 end
-
-print call1 four 2
 
 printflush getlink 0

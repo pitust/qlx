@@ -1,0 +1,36 @@
+{
+    "name": "qlx",
+    "displayName": "QLX Language",
+    "description": "Language support for QLX",
+    "version": "1.0.0",
+    "publisher": "pitust",
+    "engines": {
+        "vscode": "^1.26.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "qlx",
+                "aliases": [
+                    "QLX",
+                    "qlx"
+                ],
+                "extensions": [
+                    ".qlx"
+                ],
+                "configuration": "./config/language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "qlx",
+                "scopeName": "source.qlx",
+                "path": "./syntaxes/qlx.json"
+            }
+        ]
+    },
+    "dependencies": {}
+}

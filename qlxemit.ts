@@ -28,7 +28,7 @@ function thestr(t: ast | string): string {
 
 type Type = string
 type ICvar = {}
-type Varref = ['global', string] | ['local', string] | ['func', { argc: number }]
+type Varref = ['global', string] | ['global_temp', string] | ['local', string] | ['func', { argc: number }]
 
 let emitting_to: keyof typeof emit = 'entry'
 let ctx = new Map<string, Varref>()
@@ -72,6 +72,33 @@ function compilenode(node: ast): string {
         ctx.set(name, ['local', `a.${rv}.${idx}`])
         return
     }
+    if (node.type == 'memread') {
+        // read result cell1 addr
+        const tix = ti++
+        emit[emitting_to](`read t.${tix} ${compilenode(theast(node.children[0]))} ${compilenode(theast(node.children[1]))}`)
+        return `t.${tix}`
+    }
+    if (node.type == 'let') {
+        const name = thestr(node.children[0])
+        let init = compilenode(theast(node.children[1]))
+        if (init == '$returns') {
+            emit[emitting_to](`set l.${name} ${init}`)
+        }
+        if (emitting_to == 'entry') {
+            ctx.set(name, ['global_temp', init])
+        } else {
+            ctx.set(name, ['local', init])
+        }
+        return
+    }
+    if (node.type == 'drawline') {
+        emit[emitting_to](`draw line ${compilenode(theast(node.children[0]))} ${compilenode(theast(node.children[1]))} ${compilenode(theast(node.children[2]))} ${compilenode(theast(node.children[3]))} 0 0`)
+        return
+    }
+    if (node.type == 'drawclear') {
+        emit[emitting_to](`draw clear ${compilenode(theast(node.children[0]))} ${compilenode(theast(node.children[1]))} ${compilenode(theast(node.children[2]))} 0 0 0`)
+        return
+    }
     if (node.type == 'callnode') {
         const name = thestr(node.children[0])
         const args = theast(node.children[1]).children
@@ -93,12 +120,13 @@ function compilenode(node: ast): string {
         return `$returns`
     }
     if (node.type == 'binop') {
+        const tix = ti++
         emit[emitting_to](
-            `op ${thestr(node.children[0])} t.${ti} ${compilenode(theast(node.children[1]))} ${compilenode(
+            `op ${thestr(node.children[0])} t.${tix} ${compilenode(theast(node.children[1]))} ${compilenode(
                 theast(node.children[2])
             )}`
         )
-        return `t.${ti++}`
+        return `t.${tix}`
     }
     if (node.type == 'varnode') {
         if (!ctx.has(thestr(node.children[0]))) {
@@ -125,9 +153,36 @@ function compilenode(node: ast): string {
         emit[emitting_to](`printflush ${compilenode(theast(node.children[0]))}`)
         return
     }
+    if (node.type == 'drawflush') {
+        emit[emitting_to](`drawflush ${compilenode(theast(node.children[0]))}`)
+        return
+    }
     if (node.type == 'getlinknode') {
         emit[emitting_to](`getlink t.${ti} ${compilenode(theast(node.children[0]))}`)
         return `t.${ti}`
+    }
+    if (node.type == 'if') {
+        const tix = ti
+        ti += 2
+        emit[emitting_to](`jump t.${tix} notEqual ${compilenode(theast(node.children[0]))} 1`)
+        compilenode(theast(node.children[1]))
+        emit[emitting_to](`jump t.${tix + 1} always 0 0`)
+        emit[emitting_to](`t.${tix}:`)
+        compilenode(theast(node.children[2]))
+        emit[emitting_to](`t.${tix + 1}:`)
+        return
+    }
+    if (node.type == 'blox') {
+        return thestr(node.children[0])
+    }
+    if (node.type == 'sense') {
+        const tix = ti++
+        emit[emitting_to](`sensor t.${tix} ${compilenode(theast(node.children[1]))} @${thestr(node.children[0])}`)
+        return `t.${tix}`
+    }
+    if (node.type == 'seton') {
+        emit[emitting_to](`control enabled ${compilenode(theast(node.children[0]))} ${compilenode(theast(node.children[1]))}`)
+        return
     }
     assert.fail(`todo: compilenode(${node.type})`)
 }
