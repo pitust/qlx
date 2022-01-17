@@ -1,27 +1,3 @@
-fn i18n_interpolate { s }
-    switch s
-        case :i18n_on do return "Enabled!" end
-        case :i18n_off do return "Disabled!" end
-    end
+use i18n
 
-    print "I18n failed: "
-    print s
-    print " is not a valid i18n ID!\n"
-    _dbgdump/0
-    printflush @message1
-    while true do end
-end
-
-fn i18n_print { s }
-    print i18n_interpolate/1 s
-
-    return null
-end
-
-if sense.enabled @switch1 do
-    i18n_print/1 :i18n_on
-else
-    i18n_print/1 :i18n_off
-end
-
-printflush @message1
+i18n::ie18n_print/1 :i18n_on

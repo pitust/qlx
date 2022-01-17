@@ -1,5 +1,8 @@
 import assert from 'assert'
+import { existsSync, readFileSync } from 'fs'
 import { checkForMixin } from './plugins'
+
+const packages = new Set<string>()
 
 export function lex(s: string): string[] {
     let lexemes: string[] = []
@@ -16,8 +19,8 @@ export function lex(s: string): string[] {
             column = 1
             continue
         }
-        if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.\:]+|"([^\s"]| )*")/.test(s)) {
-            const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.\:]+|"([^\s"]| )*")/.exec(s)![0]
+        if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.\:!<>]+|"([^\s"]| )*")/.test(s)) {
+            const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.\:!<>]+|"([^\s"]| )*")/.exec(s)![0]
             lexemes.push(lexeme)
             s = s.slice(lexeme.length)
             column += lexeme.length
@@ -83,6 +86,12 @@ const $ = {
     while(cond: ast, body: ast) {
         return new ast('while', [cond, body])
     },
+    mod(pkg: string, mod: ast) {
+        return new ast('mod', [pkg, mod])
+    },
+    depmod(name: string) {
+        return new ast('depmod', [name])
+    }
 }
 
 function parsefn() {
@@ -118,6 +127,23 @@ function parsecall(aa: [string, string]) {
 function parseprint() {
     return $.print(parseword())
 }
+function parseprintf() {
+    const w = code.shift()!
+    if (w[0] != '"') {
+        console.error('Invalid format string in printf')
+        process.exit(1)
+    }
+    const fmt = w.slice(1, -1)
+    const segments = fmt.split('{}')
+    const ops: ast[] = [
+        $.print(new ast('blox', [`"${segments[0]}"`]))
+    ]
+    for (let i = 1; i < segments.length; i++) {
+        ops.push($.print(parseword()))
+        ops.push($.print(new ast('blox', [`"${segments[i]}"`])))
+    }
+    return $.block(ops)
+}
 function parseprintflush() {
     return $.printflush(parseword())
 }
@@ -150,6 +176,50 @@ function parsewhile() {
     code = code
     const cons = parseword()
     return $.while(cond, cons)
+}
+function parseuse() {
+    const pkg = code.shift()!
+    if (packages.has(pkg)) return $.depmod(pkg)
+    const subpath = pkg.replace(/::/g, '/') + '.qlx'
+    let packageDirectories: string[] = ['.']
+    const PATH_VARS = ['QLX_PATH']
+    if (process.env.QLX_PATH_VARS) {
+        PATH_VARS.push(...process.env.QLX_PATH_VARS.split(':'))
+    }
+    for (const path_var of PATH_VARS) {
+        if (process.env[path_var])  {
+            packageDirectories.push(...process.env[path_var].split(':'))
+        }
+    }
+    const possiblePackageFiles = packageDirectories
+        .flatMap(dir => [
+            dir,
+            dir + '/src',
+            dir + '/source',
+            dir + '/pkg',
+        ])
+    const foundPackageFiles = 
+        possiblePackageFiles
+        .filter(e => existsSync(e + '/' + subpath))
+    if (foundPackageFiles.length == 0) {
+        console.log('\x1b[0;31mCannot find package \x1b[33;1m%s\x1b[0m!', pkg)
+        process.exit(1)
+    }
+    if (foundPackageFiles.length != 1) {
+        console.log('\x1b[32;1mFound many candidates for package \x1b[33;1m%s\x1b[0m:', pkg)
+        for (const pkgfile of foundPackageFiles) {
+            console.log('    - \x1b[34;1m%s\x1b[0m', pkgfile)
+        }
+        process.exit(1)
+    }
+    const pkgstr = readFileSync(subpath).toString()
+    packages.add(pkg)
+
+    let realcode = code
+    const data = parseprogram(pkgstr)
+    code = realcode
+    
+    return $.mod(pkg, data)
 }
 function parseswitch() {
     const cases: ast[] = []
@@ -193,7 +263,8 @@ const map = new Map<string, number>()
 const genuid = (
     id => () =>
         id++
-)(/* nice big offset */ 0x4141)
+)(/* nice big offset */ 0x414243)
+
 function uid(s: string) {
     if (!map.has(s)) {
         map.set(s, genuid())
@@ -213,8 +284,10 @@ function parseword(): ast {
     if (code[0] == '*') return code.shift(), parsebinop('mul')
     if (code[0] == '/') return code.shift(), parsebinop('div')
     if (code[0] == '==') return code.shift(), parsebinop('equal')
+    if (code[0] == '>=') return code.shift(), parsebinop('greaterThanEq')
+    if (code[0] == '!=') return code.shift(), parsebinop('notEqual')
     if (code[0][0] == '"') return new ast('blox', [code.shift()!])
-    if (/^[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0]))
+    if (/^([a-zA-Z_][a-zA-Z_0-9]*::)*[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0]))
         return parsecall(<[string, string]>code.shift()!.split('/'))
     if (code[0] == 'fn') return code.shift(), parsefn()
     if (code[0] == 'do') return code.shift(), parsedo()
@@ -222,9 +295,11 @@ function parseword(): ast {
     if (code[0] == 'true') return code.shift(), new ast('blox', ['1'])
     if (code[0] == 'false') return code.shift(), new ast('blox', ['0'])
     if (code[0] == 'print') return code.shift(), parseprint()
+    if (code[0] == 'printf') return code.shift(), parseprintf()
     if (code[0] == 'printflush') return code.shift(), parseprintflush()
     if (code[0] == 'getlink') return code.shift(), parsegetlink()
     if (code[0] == 'if') return code.shift(), parseif()
+    if (code[0] == 'use') return code.shift(), parseuse()
     if (code[0] == 'while') return code.shift(), parsewhile()
     if (code[0] == 'switch') return code.shift(), parseswitch()
     if (code[0] == 'let') return code.shift(), parselet()
@@ -240,7 +315,7 @@ function parseword(): ast {
     if (code[0].startsWith('sense.')) return new ast('sense', [code.shift()!.slice(6), parseword()])
     if (code[0].startsWith('seton'))
         return code.shift(), new ast('seton', [parseword(), parseword()])
-    if (/^[0-9]+$/.test(code[0])) return $.number(+code.shift()!)
+    if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0])) return $.number(+code.shift()!)
     if (code[0][0] == ':') return $.number(uid(code.shift()!.slice(1)))
     return $.var(code.shift()!)
 }

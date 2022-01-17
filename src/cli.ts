@@ -8,6 +8,11 @@ let out: string | null = null
 let decode_trace: string = null
 
 for (const arg of process.argv.slice(2)) {
+    if (arg == '-h' || arg == '--help') {
+        console.log(`Usage: qlx [ARGS...] <input>`)
+        process.exit(2)
+    }
+
     if (paramCallback) {
         paramCallback(arg)
         paramCallback = null

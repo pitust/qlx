@@ -7,9 +7,16 @@ import { checkForMixin } from './plugins'
 
 inspect.defaultOptions.depth = Infinity
 
+let cmod = '__main'
+let cfn = '__init'
+
+const bleedctx = new Map<string, Map<string, Varref>>()
+
 export interface ICompilerContext {
     emit: (s: string) => void
     gettemp: () => string
+    current_mod: string
+    current_fn: string
     ctx: Map<string, Varref>
 }
 export interface ICompilerCallContext extends ICompilerContext {
@@ -21,7 +28,7 @@ interface func {
     needsSaveProlouge: boolean
 }
 
-const functions = new Map<string, func>()
+let functions = new Map<string, func>()
 
 function isast(t: ast | string): asserts t is ast {}
 function isstr(t: ast | string): asserts t is string {}
@@ -42,7 +49,6 @@ export type Varref =
 
 let emitting_to: keyof typeof emit = 'entry'
 let ctx = new Map<string, Varref>()
-let rv = ''
 let ti = 0
 function weightavg(...toavg: [number, number][]) {
     let tsum = 0
@@ -58,8 +64,8 @@ function compilenode(node: ast): string {
     if (node.type == 'fnnode') {
         assert(emitting_to == 'entry')
         emitting_to = 'functions'
-        emit.functions(`fn.${thestr(node.children[0])}:`)
-        rv = thestr(node.children[0])
+        emit.functions(`fn.${cmod}::${thestr(node.children[0])}:`)
+        cfn = thestr(node.children[0])
         if (functions.get(thestr(node.children[0]))!.needsSaveProlouge) {
             // save prolouge
             // emit.functions(`    set rt_malloc.arg0 xx`)
@@ -73,6 +79,7 @@ function compilenode(node: ast): string {
             if (v[0] == 'local') ctx.delete(k)
         }
         ctx.set(thestr(node.children[0]), ['func', { argc: +thestr(node.children[2]) }])
+        cfn = '__init'
         return 'lol nope!'
     }
     if (node.type == 'blocknode') {
@@ -83,13 +90,13 @@ function compilenode(node: ast): string {
     }
     if (node.type == 'returnnode') {
         emit[emitting_to](`set $returns ${compilenode(theast(node.children[0]))}`)
-        emit[emitting_to](`set @counter lr.${rv}`)
+        emit[emitting_to](`set @counter lr.${cmod}::${cfn}`)
         return 'lol nope!'
     }
     if (node.type == 'bindarg') {
         const name = thestr(node.children[0])
         const idx = +thestr(node.children[1])
-        ctx.set(name, ['local', `a.${rv}.${idx}`])
+        ctx.set(name, ['local', `a.${cmod}::${cfn}.${idx}`])
         return 'lol nope!'
     }
     if (node.type == 'memread') {
@@ -105,8 +112,13 @@ function compilenode(node: ast): string {
     if (node.type == 'let') {
         const name = thestr(node.children[0])
         let init = compilenode(theast(node.children[1]))
-        if (init == '$returns') {
-            emit[emitting_to](`set l.${name} ${init}`)
+        if (!'tgl'.includes(init[0])) {
+            emit[emitting_to](`set l.${cmod}.${cfn}::${name} ${init}`)
+            init = `l.${cmod}.${cfn}::${name}`
+        }
+        if (ctx.has(name)) {
+            emit[emitting_to](`set ${ctx.get(name)[1]} ${init}`)
+            return 'lol nope!'
         }
         if (emitting_to == 'entry') {
             ctx.set(name, ['global_temp', init])
@@ -141,9 +153,11 @@ function compilenode(node: ast): string {
                 `@qlx/emit:late-intrinsics:${name}/${args.length}`,
                 {
                     args: args.map(e => theast(e)),
-                    emit: (s) => emit[emitting_to](s),
+                    emit: s => emit[emitting_to](s),
                     ctx,
-                    gettemp: () => `t.${ti++}`
+                    current_fn: cfn,
+                    current_mod: cmod,
+                    gettemp: () => `t.${ti++}`,
                 }
             )
             if (m) return m
@@ -158,11 +172,14 @@ function compilenode(node: ast): string {
             console.log(`argc mismatch: found ${args.length}, expected ${fn[1].argc}`)
             process.exit(1)
         }
+
+        const resolvedname = name.includes('::') ? name : `${cmod}::${name}`
+
         for (let idx in args) {
-            emit[emitting_to](`set a.${name}.${idx} ${compilenode(theast(args[idx]))}`)
+            emit[emitting_to](`set a.${resolvedname}.${idx} ${compilenode(theast(args[idx]))}`)
         }
-        emit[emitting_to](`op add lr.${name} @counter 1`)
-        emit[emitting_to](`jump fn.${name} always 0 0`)
+        emit[emitting_to](`op add lr.${resolvedname} @counter 1`)
+        emit[emitting_to](`jump fn.${resolvedname} always 0 0`)
         return `$returns`
     }
     if (node.type == 'binop') {
@@ -182,7 +199,7 @@ function compilenode(node: ast): string {
         }
         const varref = ctx.get(thestr(node.children[0]))!
         if (varref[0] == 'global') {
-            return `g.${varref[1]}`
+            return `g.${cmod}::${varref[1]}`
         }
         if (varref[0] == 'global_temp') {
             return `${varref[1]}`
@@ -339,23 +356,57 @@ function compilenode(node: ast): string {
         }
         return 'lol nope!'
     }
+    if (node.type == 'programnode') {
+        for (const elem of node.children) {
+            if (theast(elem).type == 'fnnode') {
+                functions.set(thestr(theast(elem).children[0]), {
+                    emitted: false,
+                    needsSaveProlouge: false,
+                })
+            }
+        }
+
+        for (const elem of node.children) compilenode(theast(elem))
+
+        return 'lol nope!'
+    }
+    if (node.type == 'mod') {
+        let oldmod = cmod
+        const name = thestr(node.children[0])
+        const body = theast(node.children[1])
+
+        cmod = name
+        const oldfns = functions
+        const oldctx = ctx
+        functions = new Map<string, func>()
+        ctx = new Map<string, Varref>()
+        
+        compilenode(body)
+
+        const newctx = ctx
+        const newfns = functions
+
+        ctx = oldctx
+        functions = oldfns
+
+        for (const [k, v] of newctx) {
+            ctx.set(name + '::' + k, v)
+        }
+        for (const [k, v] of newfns) {
+            functions.set(name + '::' + k, v)
+        }
+
+        cmod = oldmod
+        return 'lol nope!'
+    }
     assert.fail(`todo: compilenode(${node.type})`)
 }
 
 export function compileCode(inp: string, out?: string) {
     const code = parseprogram(readFileSync(inp).toString())
 
-    for (const elem of code.children) {
-        if (theast(elem).type == 'fnnode') {
-            functions.set(thestr(theast(elem).children[0]), {
-                emitted: false,
-                needsSaveProlouge: false,
-            })
-        }
-    }
-
-    for (const elem of code.children) compilenode(theast(elem))
-
+    compilenode(code)
+    
     emit[emitting_to]('end')
 
     if (out) {
