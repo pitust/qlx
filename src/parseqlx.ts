@@ -19,8 +19,14 @@ export function lex(s: string): string[] {
             column = 1
             continue
         }
-        if (/^([a-zA-Z_0-9@{}\*\/\+\-=\.\:!<>]+|"([^\s"]| )*")/.test(s)) {
-            const lexeme = /^([a-zA-Z_0-9@{}\*\/\+\-=\.\:!<>]+|"([^\s"]| )*")/.exec(s)![0]
+        if (s[0] == ':') {
+            lexemes.push(':')
+            column += 1
+            s = s.slice(1)
+            continue
+        }
+        if (/^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.test(s)) {
+            const lexeme = /^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.exec(s)![0]
             lexemes.push(lexeme)
             s = s.slice(lexeme.length)
             column += lexeme.length
@@ -254,10 +260,27 @@ function parseswitch() {
         dfl
     ])
 }
+function parsetype() {
+    const typ = code.shift()!
+    if (typ == 'float') return new ast('floatty', [])
+    if (typ == 'str') return new ast('strty', [])
+    return new ast('namedty', [typ])
+}
 function parselet() {
     const c = code.shift()!
+    if (code[0] == ':') {
+        code.shift()
+        const ty = parsetype()
+        assert(code.shift() == '=')
+        return new ast('typedlet', [ty, parseword()])
+    }
     assert(code.shift() == '=')
     return new ast('let', [c, parseword()])
+}
+function parseset() {
+    const c = code.shift()!
+    assert(code.shift() == '=')
+    return new ast('set', [c, parseword()])
 }
 const map = new Map<string, number>()
 const genuid = (
@@ -317,6 +340,7 @@ function parseword(): ast {
         return code.shift(), new ast('seton', [parseword(), parseword()])
     if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0])) return $.number(+code.shift()!)
     if (code[0][0] == ':') return $.number(uid(code.shift()!.slice(1)))
+    if (code[1] == '=') return parseset()
     return $.var(code.shift()!)
 }
 

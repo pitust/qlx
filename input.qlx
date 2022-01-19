@@ -1,3 +1,5 @@
-use i18n
 
-i18n::ie18n_print/1 :i18n_on
+let foo: float = 3
+//     ^ ^
+//     | \- support.type.primitive.qlx
+//     \- keyword.operator.type.annotation.qlx
