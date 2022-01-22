@@ -272,7 +272,7 @@ function parselet() {
         code.shift()
         const ty = parsetype()
         assert(code.shift() == '=')
-        return new ast('typedlet', [ty, parseword()])
+        return new ast('typedlet', [ty, c, parseword()])
     }
     assert(code.shift() == '=')
     return new ast('let', [c, parseword()])

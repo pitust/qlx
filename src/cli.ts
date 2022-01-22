@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 import { checkForMixin, loadPlugin } from './plugins'
-import { compileCode } from './qlxemit'
+import { generateSSA } from './middlegen'
 
 let paramCallback: null | ((s: string) => void)
 let inp: string | null = null
@@ -81,5 +81,6 @@ if (decode_trace) {
     process.exit(0)
 }
 
-if (out) compileCode(inp, out)
-else compileCode(inp)
+generateSSA(inp)
+// if (out) compileCode(inp, out)
+// else compileCode(inp)
