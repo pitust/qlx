@@ -1,4 +1,4 @@
-const outputs = {
+export const outputs = {
     entry: <string[]>[],
     functions: <string[]>[],
 }

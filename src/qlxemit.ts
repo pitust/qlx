@@ -1,6 +1,6 @@
 import assert from 'assert'
 import { parseprogram, ast } from './parseqlx'
-import { emit, gather } from './emitter'
+import { emit, gather, outputs } from './emitter'
 import { inspect } from 'util'
 import { readFileSync, writeFileSync } from 'fs'
 import { checkForMixin } from './plugins'
@@ -407,7 +407,8 @@ export function compileCode(inp: string, out?: string) {
 
     compilenode(code)
     
-    emit[emitting_to]('end')
+    if (outputs.functions.length != 0)
+        emit[emitting_to]('jump 0 always')
 
     if (out) {
         let d = checkForMixin<null, string>('@qlx/cli:generate-mapfile', null)
