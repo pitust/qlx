@@ -146,6 +146,7 @@ function parseprintf() {
     ]
     for (let i = 1; i < segments.length; i++) {
         ops.push($.print(parseword()))
+        if (segments[i] == '') continue
         ops.push($.print(new ast('blox', [`"${segments[i]}"`])))
     }
     return $.block(ops)

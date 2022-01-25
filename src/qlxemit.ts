@@ -109,6 +109,24 @@ function compilenode(node: ast): string {
         )
         return `t.${tix}`
     }
+    if (node.type == 'typedlet') {
+        const name = thestr(node.children[1])
+        let init = compilenode(theast(node.children[2]))
+        if (!'tgl'.includes(init[0])) {
+            emit[emitting_to](`set l.${cmod}.${cfn}::${name} ${init}`)
+            init = `l.${cmod}.${cfn}::${name}`
+        }
+        if (ctx.has(name)) {
+            emit[emitting_to](`set ${ctx.get(name)[1]} ${init}`)
+            return 'lol nope!'
+        }
+        if (emitting_to == 'entry') {
+            ctx.set(name, ['global_temp', init])
+        } else {
+            ctx.set(name, ['local', init])
+        }
+        return 'lol nope!'
+    }
     if (node.type == 'let') {
         const name = thestr(node.children[0])
         let init = compilenode(theast(node.children[1]))

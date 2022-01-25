@@ -23,7 +23,7 @@ export enum Opcode {
     AliasLoc,
     StLoc,
     Call,
-    MathOp,
+    BinOp,
     TargetOp,
     End,
     Return,
@@ -37,13 +37,20 @@ export enum JumpCond {
     GreaterEqual,
     Equal,
     NotEqual,
+    TestBoolean,
     Abort,
 }
 export enum PrimitiveType {
+    Bool,
     Float,
     String,
     Null,
 }
+export interface Options {
+    ssa: boolean
+    reorderBlocks: boolean
+}
+export const options: Options = <Options>{}
 export type Type = PrimitiveType
 export type OpArg = string | number | { reg: number } | { type: Type }
 export interface SSAOp {
@@ -67,16 +74,56 @@ interface SSAGenCtx {
     currentBlock: SSABlock
     isGlobal: boolean
     blocks: Set<SSABlock>
+    glob: Set<string>
 }
+const getreg = (i => () => i++)(1)
 function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
     if (node.type == 'number') {
         return +thestr(node.children[0])
     }
+    if (node.type == 'binop') {
+        const opc = thestr(node.children[0])
+        const lhs = theast(node.children[1])
+        const rhs = theast(node.children[2])
+        const reg = getreg()
+        ctx.currentBlock.ops.push({
+            op: Opcode.BinOp,
+            args: [{ reg }, opc, doGenerateExpr(lhs, ctx), doGenerateExpr(rhs, ctx)]
+        })
+        return { reg }
+    }
+    if (node.type == 'blox') {
+        const vname = thestr(node.children[0])
+        const reg = getreg()
+        ctx.currentBlock.ops.push({
+            op: Opcode.TargetOp,
+            args: ['_lookupblox', { reg }, vname]
+        })
+        return { reg }
+    }
+    if (node.type == 'varnode') {
+        const vname = thestr(node.children[0])
+        const reg = getreg()
+        ctx.currentBlock.ops.push({
+            op: ctx.glob.has(vname) ? Opcode.LdGlob : Opcode.LdLoc,
+            args: [{ reg }, vname]
+        })
+        return { reg }
+    }
+
     assert(false, 'TODO: generate expr ' + node.type)
 }
 function doGenerateType(node: ast): OpArg {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     assert(false, 'TODO: type ' + node.type)
+}
+function ssablk(): SSABlock {
+    return {
+        ops: [],
+        cond: JumpCond.Abort,
+        condargs: [],
+        targets: [],
+    }
 }
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     if (node.type == 'programnode') {
@@ -84,6 +131,32 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             doGenerateSSA(theast(c), ctx)
         }
         return
+    }
+    if (node.type == 'blocknode') {
+        for (const c of node.children) doGenerateSSA(theast(c), ctx)
+        return
+    }
+    if (node.type == 'if') {
+        if (theast(node.children[2]).type == 'blocknode' && theast(node.children[2]).children.length == 0) {
+            // if .. do-end
+            const cond = doGenerateExpr(theast(node.children[0]), ctx)
+            const body: SSABlock = ssablk()
+            const fwd: SSABlock = ssablk()
+            ctx.currentBlock.cond = JumpCond.TestBoolean
+            ctx.currentBlock.condargs = [cond]
+            ctx.currentBlock.targets = [body, fwd]
+            ctx.currentBlock = body
+            for (const b of theast(node.children[1]).children) doGenerateSSA(theast(b), ctx)
+            ctx.currentBlock.cond = JumpCond.Always
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [fwd]
+            ctx.currentBlock = fwd
+            ctx.blocks.add(body)
+            ctx.blocks.add(fwd)
+            return
+        } else {
+            // if .. do-else-end
+        }
     }
     if (node.type == 'typedlet') {
         ctx.currentBlock.ops.push({
@@ -94,8 +167,35 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
             args: [thestr(node.children[1]), doGenerateExpr(theast(node.children[2]), ctx)],
         })
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
         return
     }
+    if (node.type == 'printnode') {
+        if (theast(node.children[0]).type == 'blox') {
+            // direct emission
+            ctx.currentBlock.ops.push({
+                op: Opcode.TargetOp,
+                args: ['print.direct', thestr(theast(node.children[0]).children[0])]
+            })
+            return
+        } else {
+            // value emission
+            ctx.currentBlock.ops.push({
+                op: Opcode.TargetOp,
+                args: ['print.ref', doGenerateExpr(theast(node.children[0]), ctx)]
+            })
+            return
+        }
+    }
+    if (node.type == 'printflushnode') {
+        ctx.currentBlock.ops.push({
+            op: Opcode.TargetOp,
+            args: ['print.flush', doGenerateExpr(theast(node.children[0]), ctx)]
+        })
+        return
+    }
+
+    console.log(node)
     assert(false, 'todo: handle ' + node.type)
 }
 export function dumpSSA(unit: SSAUnit) {
@@ -126,6 +226,7 @@ export function generateSSA(file: string): SSAUnit {
         currentBlock: blk,
         isGlobal: true,
         blocks: new Set([blk]),
+        glob: new Set<string>()
     }
 
     doGenerateSSA(parseprogram(readFileSync(file).toString()), ctx)

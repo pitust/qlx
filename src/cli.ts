@@ -1,86 +1,22 @@
-import { readFileSync } from 'fs'
 import { checkForMixin, loadPlugin } from './plugins'
-import { generateSSA } from './middlegen'
+import { checkAllTypes } from './typechk'
+import { generateSSA, options, Options } from './middlegen'
+import { generateCode } from './codegen'
+import { readFileSync } from 'fs'
+import { compileCode } from './qlxemit'
 
-let paramCallback: null | ((s: string) => void)
-let inp: string | null = null
-let out: string | null = null
-let decode_trace: string = null
-
-for (const arg of process.argv.slice(2)) {
-    if (arg == '-h' || arg == '--help') {
-        console.log(`Usage: qlx [ARGS...] <input>`)
-        process.exit(2)
-    }
-
-    if (paramCallback) {
-        paramCallback(arg)
-        paramCallback = null
-        continue
-    }
-
-    if (arg == '--plugin') {
-        paramCallback = plg => {
-            loadPlugin(plg)
+export function onCLIParseComplete(o: Options, input: string) {
+    Object.assign(options, o)
+    if (options.ssa) {
+        const u = generateSSA(input)
+        if (!checkAllTypes(u)) {
+            console.log('fatal error: type check failed; exiting')
+            process.exit(1)
         }
-        continue
+        generateCode(u)
+    } else {
+        compileCode(input)
     }
-    if (arg.startsWith('--plugin=')) {
-        loadPlugin(arg.slice(9))
-        continue
-    }
-
-    if (arg == '-o' || arg == '--output') {
-        paramCallback = theout => {
-            out = theout
-        }
-        continue
-    }
-    if (arg.startsWith('-o') || arg.startsWith('--output=')) {
-        out = arg.slice(arg[1] == '-' ? 9 : 2)
-        continue
-    }
-    if (arg == '--decode') {
-        paramCallback = theout => {
-            decode_trace = theout
-        }
-        continue
-    }
-    if (arg.startsWith('--decode=')) {
-        decode_trace = arg.slice(9)
-        continue
-    }
-
-    if (inp) {
-        console.log('error: multiple inputs!')
-        process.exit(1)
-    }
-    inp = arg
 }
-
-if (!inp) {
-    console.log('error: no input!')
-    process.exit(1)
-}
-
-if (decode_trace) {
-    if (!out) {
-        console.log('error: cannot read mapfiles without output!')
-        process.exit(1)
-    }
-    if (
-        checkForMixin<string, void>(
-            '@qlx/cli:load-mapfile',
-            readFileSync(out + '.map').toString()
-        ) === false ||
-        checkForMixin<string, void>('@qlx/cli:lookup-in-map', decode_trace) === false
-    ) {
-        console.log('error: cannot file mapfile mixins!')
-        process.exit(1)
-    }
-    process.exit(0)
-}
-
-generateSSA(inp)
 // if (out) compileCode(inp, out)
 // else compileCode(inp)

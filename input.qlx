@@ -1,5 +1,8 @@
-
 let foo: float = 3
+if != 5 foo do
+    printf "foo = {}" foo
+end
+printflush @message1
 //     ^ ^
 //     | \- support.type.primitive.qlx
 //     \- keyword.operator.type.annotation.qlx
