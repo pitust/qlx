@@ -1,7 +1,15 @@
 
 options = {
     'ssa': 'Enable experimental SSA codegen (single-statement assigned)',
-    'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order.',
+    'strip-comments': 'strip comments from the output to save on lines',
+    'no-end': 'remove the last `end` opcode from the code',
+    'no-safe-abort': '[ssa] disable compiler-generated safety abort loops',
+    'dump-ssa': '[ssa] dump the SSA generated',
+    'bind-loads': '[ssa] bind registers to locals when loaded.',
+    'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough.',
+    'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order',
+    'max': '[ssa] enable as much stuff as possible',
+    'interleave-ssa': '[ssa] interlave code and SSA opcodes',
 }
 
 def mapname(s: str) -> str:

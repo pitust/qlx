@@ -48,11 +48,19 @@ export enum PrimitiveType {
 }
 export interface Options {
     ssa: boolean
+    stripComments: boolean
+    noEnd: boolean
+    bindLoads: boolean
+    noSafeAbort: boolean
+    dumpSsa: boolean
+    eliminateBranches: boolean
     reorderBlocks: boolean
+    max: boolean
+    interleaveSsa: boolean
 }
 export const options: Options = <Options>{}
 export type Type = PrimitiveType
-export type OpArg = string | number | { reg: number } | { type: Type }
+export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string }
 export interface SSAOp {
     op: Opcode
     args: OpArg[]
@@ -76,7 +84,10 @@ interface SSAGenCtx {
     blocks: Set<SSABlock>
     glob: Set<string>
 }
-const getreg = (i => () => i++)(1)
+const getreg = (
+    i => () =>
+        i++
+)(1)
 function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
     if (node.type == 'number') {
         return +thestr(node.children[0])
@@ -88,7 +99,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
         const reg = getreg()
         ctx.currentBlock.ops.push({
             op: Opcode.BinOp,
-            args: [{ reg }, opc, doGenerateExpr(lhs, ctx), doGenerateExpr(rhs, ctx)]
+            args: [{ reg }, opc, doGenerateExpr(lhs, ctx), doGenerateExpr(rhs, ctx)],
         })
         return { reg }
     }
@@ -97,7 +108,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
         const reg = getreg()
         ctx.currentBlock.ops.push({
             op: Opcode.TargetOp,
-            args: ['_lookupblox', { reg }, vname]
+            args: ['_lookupblox', { reg }, vname],
         })
         return { reg }
     }
@@ -106,7 +117,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
         const reg = getreg()
         ctx.currentBlock.ops.push({
             op: ctx.glob.has(vname) ? Opcode.LdGlob : Opcode.LdLoc,
-            args: [{ reg }, vname]
+            args: [{ reg }, vname],
         })
         return { reg }
     }
@@ -137,7 +148,10 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         return
     }
     if (node.type == 'if') {
-        if (theast(node.children[2]).type == 'blocknode' && theast(node.children[2]).children.length == 0) {
+        if (
+            theast(node.children[2]).type == 'blocknode' &&
+            theast(node.children[2]).children.length == 0
+        ) {
             // if .. do-end
             const cond = doGenerateExpr(theast(node.children[0]), ctx)
             const body: SSABlock = ssablk()
@@ -175,14 +189,14 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             // direct emission
             ctx.currentBlock.ops.push({
                 op: Opcode.TargetOp,
-                args: ['print.direct', thestr(theast(node.children[0]).children[0])]
+                args: ['print.direct', thestr(theast(node.children[0]).children[0])],
             })
             return
         } else {
             // value emission
             ctx.currentBlock.ops.push({
                 op: Opcode.TargetOp,
-                args: ['print.ref', doGenerateExpr(theast(node.children[0]), ctx)]
+                args: ['print.ref', doGenerateExpr(theast(node.children[0]), ctx)],
             })
             return
         }
@@ -190,7 +204,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     if (node.type == 'printflushnode') {
         ctx.currentBlock.ops.push({
             op: Opcode.TargetOp,
-            args: ['print.flush', doGenerateExpr(theast(node.children[0]), ctx)]
+            args: ['print.flush', doGenerateExpr(theast(node.children[0]), ctx)],
         })
         return
     }
@@ -206,9 +220,17 @@ export function dumpSSA(unit: SSAUnit) {
     m.set(unit.startBlock, 'entry')
     for (const block of unit.blocks) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
-        console.log(`\x1b[34m${m.get(block)}\x1b[0m`)
+    }
+    for (const block of unit.blocks) {
+        console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)
         for (const op of block.ops) {
             console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args)
+        }
+        console.log('  \x1b[34m%s\x1b[0m', JumpCond[block.cond], ...block.condargs)
+        const labels = [[], ['target'], ['cons', 'alt']][block.targets.length]
+        for (const ti in block.targets) {
+            const t = block.targets[ti]
+            console.log('     \x1b[35m%s\x1b[0m => \x1b[34;1m%s\x1b[0m', labels[ti], m.get(t))
         }
     }
 }
@@ -226,7 +248,7 @@ export function generateSSA(file: string): SSAUnit {
         currentBlock: blk,
         isGlobal: true,
         blocks: new Set([blk]),
-        glob: new Set<string>()
+        glob: new Set<string>(),
     }
 
     doGenerateSSA(parseprogram(readFileSync(file).toString()), ctx)

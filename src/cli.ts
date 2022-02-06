@@ -7,6 +7,14 @@ import { compileCode } from './qlxemit'
 
 export function onCLIParseComplete(o: Options, input: string) {
     Object.assign(options, o)
+    if (options.max) {
+        options.noEnd = true
+        options.bindLoads = true
+        options.noSafeAbort = true
+        options.eliminateBranches = true
+        options.reorderBlocks = true
+        options.max = true
+    }
     if (options.ssa) {
         const u = generateSSA(input)
         if (!checkAllTypes(u)) {
