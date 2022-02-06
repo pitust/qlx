@@ -93,6 +93,7 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
             `b_${i++}`
     )(0)
     const bnames = new Map<SSABlock, string>()
+    const usedlabels = new Set<string>()
     bnames.set(unit.startBlock, 'entry')
     function blookup(blk: SSABlock) {
         const id = bnames.has(blk) ? bnames.get(blk)! : genid()
@@ -163,23 +164,26 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
             blk.targets.length > 1 &&
             afterBlock.get(blk.targets[1]) == blk
         if (blk.cond == JumpCond.Always) {
-            if (!hasCons) code.push(`    jump _main::_init.${blookup(blk.targets[0])}`)
-            else code.push(`    # falls through`)
+            if (!hasCons) {
+                const target = `_main::_init.${blookup(blk.targets[0])}`
+                usedlabels.add(target)
+                code.push(`    jump ${target}`)
+            } else code.push(`    # falls through`)
         } else if (blk.cond == JumpCond.TestBoolean) {
-            if (!hasCons)
-                code.push(
-                    `    jump _main::_init.${blookup(blk.targets[0])} notEqual 0 ${immref(
-                        blk.condargs[0]
-                    )} # consequent`
-                )
-            else code.push(`    # consequent (eliminated)`)
-            if (!hasAlt)
-                code.push(
-                    `    jump _main::_init.${blookup(blk.targets[1])} equal 0 ${immref(
-                        blk.condargs[0]
-                    )} # alternate`
-                )
-            else code.push(`    # alternate (eliminated)`)
+            if (!hasCons) {
+                const target = `_main::_init.${blookup(blk.targets[0])}`
+                usedlabels.add(target)
+                code.push(`    jump ${target} notEqual 0 ${immref(blk.condargs[0])} # consequent`)
+            } else {
+                code.push(`    # consequent (eliminated)`)
+            }
+            if (!hasAlt) {
+                const target = `_main::_init.${blookup(blk.targets[1])}`
+                usedlabels.add(target)
+                code.push(`    jump ${target} equal 0 ${immref(blk.condargs[0])} # alternate`)
+            } else {
+                code.push(`    # alternate (eliminated)`)
+            }
         } else if (blk.cond == JumpCond.Abort) {
             if (!options.noSafeAbort) code.push(`    op sub @counter @counter 1 # abort`)
             else code.push(`    # abort!`)
@@ -187,6 +191,11 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
             code.push(`    # branch: ${JumpCond[blk.cond]}`)
         }
     }
-    if (options.stripComments) code = code.map(line => line.split('#')[0]).filter(e => e.trim())
+    if (options.stripComments) {
+        code = code.map(line => line.split('#')[0]).filter(e => e.trim())
+    }
+    if (options.eliminateBranches) {
+        code = code.filter(e => !(e.endsWith(':') && !usedlabels.has(e.slice(0, -1))))
+    }
     writeCode(code.join('\n'))
 }
