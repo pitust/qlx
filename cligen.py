@@ -26,6 +26,7 @@ for nam in options.keys():
 struct = ['const options = {']
 parsecode = [
     'let input = null;',
+    'let output = null;',
     'if (process.argv.includes(\'-h\') || process.argv.includes(\'--help\')) {',
     '    _printHelpMessage();',
     '}',
@@ -41,7 +42,7 @@ parsecode = [
 ]
 checkcode = []
 helpmsg = []
-helpmsg.append('Usage: qlx [OPTIONS...] <input>')
+helpmsg.append('Usage: qlx [OPTIONS...] <input> [-o<output>]')
 for opt in options.keys():
     paddng = " " * (4 + longest_name + 2) + "   "
     helplines = options[opt].splitlines()
@@ -64,6 +65,7 @@ for opt in options.keys():
     struct.append(f'    {mapname(opt)}: false,')
 
 struct.append('}')
+parsecode.append('    else if (arg.startsWith(\'-o\') && arg.length > 2) output = arg.slice(2)')
 parsecode.append('    else {')
 parsecode.append('        console.log(\'error: unknown argument:\', arg);')
 parsecode.append('        process.exit(1);')
@@ -77,7 +79,7 @@ parsecode.append('}')
 for chkval in checkcode:
     parsecode.append(chkval)
 parsecode.append('if (!input) _printHelpMessage();')
-parsecode.append('onCLIParseComplete(options, input);')
+parsecode.append('onCLIParseComplete(options, input, output);')
 
 print('\n'.join([
     'import { onCLIParseComplete } from \'./cli\';',

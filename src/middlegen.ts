@@ -60,9 +60,13 @@ export interface Options {
 }
 export const options: Options = <Options>{}
 export type Type = PrimitiveType
-export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string }
+export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string }
 export interface SSAOp {
     op: Opcode
+    args: OpArg[]
+}
+export interface Cond {
+    cond: JumpCond
     args: OpArg[]
 }
 export interface SSABlock {

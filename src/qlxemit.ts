@@ -420,7 +420,7 @@ function compilenode(node: ast): string {
     assert.fail(`todo: compilenode(${node.type})`)
 }
 
-export function compileCode(inp: string, out?: string) {
+export function compileCode(inp: string, writeCode: (s: string) => void) {
     const code = parseprogram(readFileSync(inp).toString())
 
     compilenode(code)
@@ -428,13 +428,5 @@ export function compileCode(inp: string, out?: string) {
     if (outputs.functions.length != 0)
         emit[emitting_to]('jump 0 always')
 
-    if (out) {
-        let d = checkForMixin<null, string>('@qlx/cli:generate-mapfile', null)
-        if (d) {
-            writeFileSync(out + '.map', d)
-        }
-    }
-
-    if (out) writeFileSync(out, gather())
-    else console.log(gather())
+        writeCode(gather())
 }

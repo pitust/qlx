@@ -12,6 +12,7 @@ const options = {
     interleaveSsa: false,
 }
 let input = null;
+let output = null;
 if (process.argv.includes('-h') || process.argv.includes('--help')) {
     _printHelpMessage();
 }
@@ -34,13 +35,14 @@ for (const arg of process.argv.slice(2)) {
     else if (arg == '-freorder-blocks') options.reorderBlocks = true; 
     else if (arg == '-fmax') options.max = true; 
     else if (arg == '-finterleave-ssa') options.interleaveSsa = true; 
+    else if (arg.startsWith('-o') && arg.length > 2) output = arg.slice(2)
     else {
         console.log('error: unknown argument:', arg);
         process.exit(1);
     }
 }
 function _printHelpMessage() {
-    console.log("Usage: qlx [OPTIONS...] <input>");
+    console.log("Usage: qlx [OPTIONS...] <input> [-o<output>]");
     console.log("    -fssa                  - Enable experimental SSA codegen (single-statement assigned)");
     console.log("    -fstrip-comments       - strip comments from the output to save on lines");
     console.log("    -fno-end               - remove the last `end` opcode from the code");
@@ -68,4 +70,4 @@ if (options.reorderBlocks && !options.ssa) _printHelpMessage();
 if (options.max && !options.ssa) _printHelpMessage();
 if (options.interleaveSsa && !options.ssa) _printHelpMessage();
 if (!input) _printHelpMessage();
-onCLIParseComplete(options, input);
+onCLIParseComplete(options, input, output);

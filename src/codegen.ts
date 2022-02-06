@@ -40,7 +40,7 @@ function orderBlocks(
                 order.push(t[0])
                 continue
             }
-            if (blockHeat.get(t[0]) > blockHeat.get(t[1])) {
+            if (blockHeat.get(t[0]) < blockHeat.get(t[1])) {
                 bset.delete(t[0])
                 order.push(t[0])
             } else {
@@ -75,10 +75,11 @@ function immref(arg: OpArg): string {
     if (typeof arg == 'string') return JSON.stringify(arg)
     if ('reg' in arg) return `_main::_init::r${arg.reg}`
     if ('glob' in arg) return `_main::_globals::${arg.glob}`
+    if ('blox' in arg) return arg.blox
     console.log(`error: no rtti support rn!`)
     process.exit(2)
 }
-export function generateCode(unit: SSAUnit) {
+export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
     const afterBlock = new Map<SSABlock, SSABlock>()
     const blocks = orderBlocks(unit.blocks, unit.startBlock, afterBlock)
     optimize(unit, blocks)
@@ -187,5 +188,5 @@ export function generateCode(unit: SSAUnit) {
         }
     }
     if (options.stripComments) code = code.map(line => line.split('#')[0]).filter(e => e.trim())
-    console.log(code.join('\n'))
+    writeCode(code.join('\n'))
 }
