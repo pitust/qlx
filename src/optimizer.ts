@@ -348,7 +348,7 @@ function mergePrintOperations(blocks: SSABlock[]) {
                 } else {
                     replace({
                         op: Opcode.TargetOp,
-                        args: ['print.direct', `"${op.args[1]}"`]
+                        args: ['print.direct', `"${op.args[1]}"`],
                     })
                     wasprinting = true
                 }
@@ -370,13 +370,13 @@ export function optimize(u: SSAUnit, blocks: SSABlock[]) {
     const _savblocks = blocks
     if (options.constProp)
         while (propagateConstants(blocks)) {
-            console.log('pass')
             blocks = orderBlocks(new Set(blocks), blocks[0])
         }
     if (options.bindLoads) bindLoads(blocks)
     if (options.eliminateDeadCode) eliminateDeadCode(blocks)
     if (options.mergePrint) mergePrintOperations(blocks)
-    _savblocks.splice(0)
-    _savblocks.push(...blocks)
-    dumpSSA(u, blocks)
+    if (blocks != _savblocks) {
+        _savblocks.splice(0)
+        _savblocks.push(...blocks)
+    }
 }
