@@ -59,6 +59,7 @@ export interface Options {
     max: boolean
     eliminateDeadCode: boolean
     mergePrint: boolean
+    mergeBlocks: boolean
     interleaveSsa: boolean
 }
 export const options: Options = <Options>{}

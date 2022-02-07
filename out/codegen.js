@@ -24,10 +24,11 @@ function immref(arg) {
 
  function generateCode(unit, writeCode) {
     const afterBlock = new Map()
-    const blocks = _optimizer.orderBlocks.call(void 0, unit.blocks, unit.startBlock)
-    _optimizer.optimize.call(void 0, unit, blocks)
+    let blocks = _optimizer.orderBlocks.call(void 0, unit.blocks, unit.startBlock)
+    // run optimization passes 8 times
+    for (let i = 0;i < 8;i++) blocks = _optimizer.optimize.call(void 0, unit, blocks)
     if (_middlegen.options.dumpSsa) {
-        _middlegen.dumpSSA.call(void 0, unit)
+        _middlegen.dumpSSA.call(void 0, unit, blocks)
         return
     }
     let code = []

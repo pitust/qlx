@@ -12,6 +12,7 @@ const options = {
     constProp: false,
     eliminateDeadCode: false,
     mergePrint: false,
+    mergeBlocks: false,
     interleaveSsa: false,
 }
 let input = null;
@@ -40,6 +41,7 @@ for (const arg of process.argv.slice(2)) {
     else if (arg == '-fconst-prop') options.constProp = true; 
     else if (arg == '-feliminate-dead-code') options.eliminateDeadCode = true; 
     else if (arg == '-fmerge-print') options.mergePrint = true; 
+    else if (arg == '-fmerge-blocks') options.mergeBlocks = true; 
     else if (arg == '-finterleave-ssa') options.interleaveSsa = true; 
     else if (arg.startsWith('-o') && arg.length > 2) output = arg.slice(2)
     else {
@@ -52,6 +54,7 @@ function _printHelpMessage() {
     console.log("    -fssa                   - Enable experimental SSA codegen (single-statement assigned)");
     console.log("    -fstrip-comments        - strip comments from the output to save on lines");
     console.log("    -fno-end                - remove the last `end` opcode from the code");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa and -fno-safe-abort");
     console.log("    -fno-safe-abort         - disable compiler-generated safety abort loops");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -fdump-ssa              - dump the SSA generated");
@@ -70,10 +73,14 @@ function _printHelpMessage() {
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -fmerge-print           - merge sequential constant-value prints left by the optimizer");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fmerge-blocks          - merge blocks that must come after each other");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -finterleave-ssa        - interlave code and SSA opcodes");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     process.exit(1);
 }
+if (options.noEnd && !options.ssa) _printHelpMessage();
+if (options.noEnd && !options.noSafeAbort) _printHelpMessage();
 if (options.noSafeAbort && !options.ssa) _printHelpMessage();
 if (options.dumpSsa && !options.ssa) _printHelpMessage();
 if (options.bindLoads && !options.ssa) _printHelpMessage();
@@ -83,6 +90,7 @@ if (options.max && !options.ssa) _printHelpMessage();
 if (options.constProp && !options.ssa) _printHelpMessage();
 if (options.eliminateDeadCode && !options.ssa) _printHelpMessage();
 if (options.mergePrint && !options.ssa) _printHelpMessage();
+if (options.mergeBlocks && !options.ssa) _printHelpMessage();
 if (options.interleaveSsa && !options.ssa) _printHelpMessage();
 if (!input) _printHelpMessage();
 _cli.onCLIParseComplete.call(void 0, options, input, output);

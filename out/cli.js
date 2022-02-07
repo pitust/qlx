@@ -16,6 +16,7 @@ var _qlxemit = require('./qlxemit');
         _middlegen.options.constProp = true
         _middlegen.options.eliminateDeadCode = true
         _middlegen.options.mergePrint = true
+        _middlegen.options.mergeBlocks = true
         _middlegen.options.max = true
     }
     const writeCode = (code) => (output ? _fs.writeFileSync.call(void 0, output, code) : console.log(code))

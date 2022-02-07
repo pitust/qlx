@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "strictNullChecks": false,
+    "target": "ES2020",
+    "esModuleInterop": true
+  }
+}

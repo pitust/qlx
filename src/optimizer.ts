@@ -17,6 +17,9 @@ export function orderBlocks(blocks: Set<SSABlock>, b0: SSABlock): SSABlock[] {
         const bset = new Set(blocks.keys())
         order.push(b0)
         bset.delete(b0)
+        for (const b of blocks) {
+            if (b.cond == JumpCond.Abort) b.targets = [];
+        }
         while (bset.size) {
             const blockHeat = new Map<SSABlock, number>([...blocks.values()].map(e => [e, 0]))
             for (const b of blocks) {
@@ -234,6 +237,9 @@ function getParentSet(blocks: SSABlock[]): Map<SSABlock, Set<SSABlock>> {
 
     return m
 }
+function deepClone<T>(t: T) {
+    return <T>JSON.parse(JSON.stringify(t))
+}
 function propagateConstants(blocks: SSABlock[]): boolean {
     let replaced: boolean = false
     const parentsets = getParentSet(blocks)
@@ -319,7 +325,7 @@ function propagateConstants(blocks: SSABlock[]): boolean {
             constantValues.has(reg(blk.condargs[0]))
         ) {
             blk.cond = JumpCond.Always
-            blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) > 0)]]
+            blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) == 0)]]
             blk.condargs = []
         }
         gmap.set(blk, constantGlobals)
@@ -365,18 +371,32 @@ function mergePrintOperations(blocks: SSABlock[]) {
         blk.ops = replacementStream
     }
 }
+function mergeBlocks(blocks: SSABlock[]) {
+    while (true) {
+        if (options.eliminateDeadCode) eliminateDeadCode(blocks)
+        const parentsets = getParentSet(blocks)
+        for (const blk of blocks) {
+            if (blk.cond == JumpCond.Always && parentsets.get(blk.targets[0]).size == 1) {
+                blk.ops.push(...deepClone(blk.targets[0].ops))
+                blk.cond = blk.targets[0].cond
+                blk.condargs = deepClone(blk.targets[0].condargs)
+                blk.targets = blk.targets[0].targets
+                continue
+            }
+        }
+        break
+    }
+}
 
-export function optimize(u: SSAUnit, blocks: SSABlock[]) {
-    const _savblocks = blocks
+export function optimize(u: SSAUnit, blocks: SSABlock[]): SSABlock[] {
     if (options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
         }
     if (options.bindLoads) bindLoads(blocks)
     if (options.eliminateDeadCode) eliminateDeadCode(blocks)
+    if (options.mergeBlocks) mergeBlocks(blocks)
     if (options.mergePrint) mergePrintOperations(blocks)
-    if (blocks != _savblocks) {
-        _savblocks.splice(0)
-        _savblocks.push(...blocks)
-    }
+    blocks = orderBlocks(new Set(blocks), blocks[0])
+    return blocks
 }

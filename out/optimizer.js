@@ -17,6 +17,9 @@ var _middlegen = require('./middlegen');
         const bset = new Set(blocks.keys())
         order.push(b0)
         bset.delete(b0)
+        for (const b of blocks) {
+            if (b.cond == _middlegen.JumpCond.Abort) b.targets = [];
+        }
         while (bset.size) {
             const blockHeat = new Map([...blocks.values()].map(e => [e, 0]))
             for (const b of blocks) {
@@ -234,6 +237,9 @@ function getParentSet(blocks) {
 
     return m
 }
+function deepClone(t) {
+    return JSON.parse(JSON.stringify(t))
+}
 function propagateConstants(blocks) {
     let replaced = false
     const parentsets = getParentSet(blocks)
@@ -319,7 +325,7 @@ function propagateConstants(blocks) {
             constantValues.has(reg(blk.condargs[0]))
         ) {
             blk.cond = _middlegen.JumpCond.Always
-            blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) > 0)]]
+            blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) == 0)]]
             blk.condargs = []
         }
         gmap.set(blk, constantGlobals)
@@ -348,7 +354,7 @@ function mergePrintOperations(blocks) {
                 } else {
                     replace({
                         op: _middlegen.Opcode.TargetOp,
-                        args: ['print.direct', `"${op.args[1]}"`]
+                        args: ['print.direct', `"${op.args[1]}"`],
                     })
                     wasprinting = true
                 }
@@ -365,18 +371,32 @@ function mergePrintOperations(blocks) {
         blk.ops = replacementStream
     }
 }
+function mergeBlocks(blocks) {
+    while (true) {
+        if (_middlegen.options.eliminateDeadCode) eliminateDeadCode(blocks)
+        const parentsets = getParentSet(blocks)
+        for (const blk of blocks) {
+            if (blk.cond == _middlegen.JumpCond.Always && parentsets.get(blk.targets[0]).size == 1) {
+                blk.ops.push(...deepClone(blk.targets[0].ops))
+                blk.cond = blk.targets[0].cond
+                blk.condargs = deepClone(blk.targets[0].condargs)
+                blk.targets = blk.targets[0].targets
+                continue
+            }
+        }
+        break
+    }
+}
 
  function optimize(u, blocks) {
-    const _savblocks = blocks
     if (_middlegen.options.constProp)
         while (propagateConstants(blocks)) {
-            console.log('pass')
             blocks = orderBlocks(new Set(blocks), blocks[0])
         }
     if (_middlegen.options.bindLoads) bindLoads(blocks)
     if (_middlegen.options.eliminateDeadCode) eliminateDeadCode(blocks)
+    if (_middlegen.options.mergeBlocks) mergeBlocks(blocks)
     if (_middlegen.options.mergePrint) mergePrintOperations(blocks)
-    _savblocks.splice(0)
-    _savblocks.push(...blocks)
-    _middlegen.dumpSSA.call(void 0, u, blocks)
+    blocks = orderBlocks(new Set(blocks), blocks[0])
+    return blocks
 } exports.optimize = optimize;

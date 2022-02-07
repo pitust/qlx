@@ -1,5 +1,5 @@
 let foo: float = 3
-if != 3 foo do
+if != 5 foo do
     printf "foo = {}" foo
 end
 printflush @message1

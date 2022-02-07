@@ -24,10 +24,11 @@ function immref(arg: OpArg): string {
 
 export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
     const afterBlock = new Map<SSABlock, SSABlock>()
-    const blocks = orderBlocks(unit.blocks, unit.startBlock)
-    optimize(unit, blocks)
+    let blocks = orderBlocks(unit.blocks, unit.startBlock)
+    // run optimization passes 8 times
+    for (let i = 0;i < 8;i++) blocks = optimize(unit, blocks)
     if (options.dumpSsa) {
-        dumpSSA(unit)
+        dumpSSA(unit, blocks)
         return
     }
     let code: string[] = []

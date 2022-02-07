@@ -2,7 +2,7 @@
 options = {
     'ssa': 'Enable experimental SSA codegen (single-statement assigned)',
     'strip-comments': 'strip comments from the output to save on lines',
-    'no-end': 'remove the last `end` opcode from the code',
+    'no-end': '[ssa] [no-safe-abort] remove the last `end` opcode from the code',
     'no-safe-abort': '[ssa] disable compiler-generated safety abort loops',
     'dump-ssa': '[ssa] dump the SSA generated',
     'bind-loads': '[ssa] bind registers to locals when loaded',
@@ -12,6 +12,7 @@ options = {
     'const-prop': '[ssa] propagate constants accross the code',
     'eliminate-dead-code': '[ssa] eliminate some dead instructions.',
     'merge-print': '[ssa] merge sequential constant-value prints left by the optimizer',
+    'merge-blocks': '[ssa] merge blocks that must come after each other',
     'interleave-ssa': '[ssa] interlave code and SSA opcodes',
 }
 
@@ -82,7 +83,7 @@ parsecode.append('}')
 for chkval in checkcode:
     parsecode.append(chkval)
 parsecode.append('if (!input) _printHelpMessage();')
-parsecode.append('onCLIParseComplete(options, input, output);')
+parsecode.append('onCLIParseComplete(options, input!, output);')
 
 print('\n'.join([
     'import { onCLIParseComplete } from \'./cli\';',
