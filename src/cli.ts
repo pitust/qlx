@@ -13,6 +13,7 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         options.noSafeAbort = true
         options.eliminateBranches = true
         options.reorderBlocks = true
+        options.constProp = true
         options.max = true
     }
     const writeCode = (code: string) => (output ? writeFileSync(output, code) : console.log(code))

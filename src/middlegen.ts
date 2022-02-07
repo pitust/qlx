@@ -15,12 +15,12 @@ function thestr(t: ast | string): string {
 export enum Opcode {
     LdGlob,
     StGlob,
+    Move,
     StInitGlob,
     StInitLoc,
     TypeLoc,
     TypeGlob,
     LdLoc,
-    AliasLoc,
     StLoc,
     Call,
     BinOp,
@@ -55,6 +55,7 @@ export interface Options {
     dumpSsa: boolean
     eliminateBranches: boolean
     reorderBlocks: boolean
+    constProp: boolean
     max: boolean
     interleaveSsa: boolean
 }

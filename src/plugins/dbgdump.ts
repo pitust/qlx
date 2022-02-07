@@ -59,7 +59,7 @@ registerMixin<string, void>('@qlx/cli:lookup-in-map', trace => {
     const records = dvdata.get(id)
     console.log('variables in scope for ' + dqdata[id])
     for (let i = 0; i < records.length; i++) {
-        let label = '\x1b[0;30;1munkown'
+        let label = '\x1b[0;30;1munknown'
         switch (records[i].type) {
         case DumpRecordType.LOCAL:
             label = '\x1b[30;1mlocal'

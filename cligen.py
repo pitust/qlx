@@ -9,6 +9,7 @@ options = {
     'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough.',
     'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order',
     'max': '[ssa] enable as much stuff as possible',
+    'const-prop': '[ssa] propagate constants accross the code',
     'interleave-ssa': '[ssa] interlave code and SSA opcodes',
 }
 

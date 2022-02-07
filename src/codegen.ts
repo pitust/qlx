@@ -115,6 +115,8 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
                 if (typeof op.args[1] == 'object' && 'reg' in op.args[1])
                     console.log(`warn: reverse binding for globals should occur!`)
                 code.push(`    set _main::_globals::${op.args[0]} ${immref(op.args[1])}`)
+            } else if (op.op == Opcode.Move) {
+                code.push(`    set ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.LdGlob) {
                 if (typeof op.args[1] == 'object' && 'reg' in op.args[1])
                     console.log(`warn: forward loadbinding for globals should occur!`)
@@ -145,7 +147,7 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
                 code.push(`    end`)
                 break
             } else {
-                console.log(`error: unkown op:`, Opcode[op.op], ...op.args)
+                console.log(`error: unknown op:`, Opcode[op.op], ...op.args)
                 process.exit(2)
             }
         }

@@ -9,6 +9,7 @@ const options = {
     eliminateBranches: false,
     reorderBlocks: false,
     max: false,
+    constProp: false,
     interleaveSsa: false,
 }
 let input = null;
@@ -34,6 +35,7 @@ for (const arg of process.argv.slice(2)) {
     else if (arg == '-feliminate-branches') options.eliminateBranches = true; 
     else if (arg == '-freorder-blocks') options.reorderBlocks = true; 
     else if (arg == '-fmax') options.max = true; 
+    else if (arg == '-fconst-prop') options.constProp = true; 
     else if (arg == '-finterleave-ssa') options.interleaveSsa = true; 
     else if (arg.startsWith('-o') && arg.length > 2) output = arg.slice(2)
     else {
@@ -58,6 +60,8 @@ function _printHelpMessage() {
     console.log("                             \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -fmax                  - enable as much stuff as possible");
     console.log("                             \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fconst-prop           - propagate constants accross the code");
+    console.log("                             \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -finterleave-ssa       - interlave code and SSA opcodes");
     console.log("                             \x1b[1mNeeds\x1b[0m -fssa");
     process.exit(1);
@@ -68,6 +72,7 @@ if (options.bindLoads && !options.ssa) _printHelpMessage();
 if (options.eliminateBranches && !options.ssa) _printHelpMessage();
 if (options.reorderBlocks && !options.ssa) _printHelpMessage();
 if (options.max && !options.ssa) _printHelpMessage();
+if (options.constProp && !options.ssa) _printHelpMessage();
 if (options.interleaveSsa && !options.ssa) _printHelpMessage();
 if (!input) _printHelpMessage();
 onCLIParseComplete(options, input, output);
