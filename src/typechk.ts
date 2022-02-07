@@ -101,7 +101,8 @@ function continueBlockCheck(
                 return
             }
             const opTypes = {
-                notEqual: PrimitiveType.Bool
+                notEqual: PrimitiveType.Bool,
+                add: PrimitiveType.Float,
             }
             if (!(<string>op.args[1] in opTypes)) {
                 console.log('Bad binop:', op.args[1])

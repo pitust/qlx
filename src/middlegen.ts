@@ -178,6 +178,28 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             return
         } else {
             // if .. do-else-end
+            const cond = doGenerateExpr(theast(node.children[0]), ctx)
+            const cons: SSABlock = ssablk()
+            const alt: SSABlock = ssablk()
+            const fwd: SSABlock = ssablk()
+            ctx.currentBlock.cond = JumpCond.TestBoolean
+            ctx.currentBlock.condargs = [cond]
+            ctx.currentBlock.targets = [cons, alt]
+            ctx.currentBlock = cons
+            for (const b of theast(node.children[1]).children) doGenerateSSA(theast(b), ctx)
+            ctx.currentBlock.cond = JumpCond.Always
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [fwd]
+            ctx.currentBlock = alt
+            for (const b of theast(node.children[2]).children) doGenerateSSA(theast(b), ctx)
+            ctx.currentBlock.cond = JumpCond.Always
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [fwd]
+            ctx.currentBlock = fwd
+            ctx.blocks.add(cons)
+            ctx.blocks.add(alt)
+            ctx.blocks.add(fwd)
+            return
         }
     }
     if (node.type == 'typedlet') {

@@ -182,7 +182,7 @@ function bindLoads(blocks) {
 
         // then, until the end of the block or to a function call, substitute the register to a global ref
         for (const op of match.blk.ops) {
-            remap_args('load', op, arg => reg(arg) && reg(arg) == r && { glob: tgd })
+            remap_args('load', op, arg => reg(arg) && reg(arg) == r ? { glob: tgd } : null) 
             if (op.op == _middlegen.Opcode.Call) break // yeah calls break this optimization
         }
     }
@@ -219,7 +219,7 @@ function bindLoads(blocks) {
 
         // then we can forward it into a blox!
         const m = findall(blocks, op => usesfor(op, r, 'ldst') && op != match.op)[0]
-        remap_args('load', m.op, arg => reg(arg) && reg(arg) == r && { blox: tgd })
+        remap_args('load', m.op, arg => reg(arg) && reg(arg) == r ? { blox: tgd } : null)
 
         // also, we can remove the opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
@@ -303,6 +303,13 @@ function propagateConstants(blocks) {
                         args: [{ reg: out }, constantValues.get(out)],
                     })
                 }
+                if (op.args[1] == 'add') {
+                    constantValues.set(out, left + right)
+                    replace({
+                        op: _middlegen.Opcode.Move,
+                        args: [{ reg: out }, constantValues.get(out)],
+                    })
+                }
             }
             if (op.op == _middlegen.Opcode.TargetOp) {
                 op.args = op.args.map(arg => {
@@ -314,6 +321,20 @@ function propagateConstants(blocks) {
                         replaced = true
                         return constantGlobals.get(arg.glob)
                     }
+                    return arg
+                })
+            } else {
+                op.args = op.args.map((arg, idx) => {
+                    if (typeof arg != 'object') return arg
+                    if (!('glob' in arg)) return arg
+                    if (!idx) return arg
+                    if (constantGlobals.has(arg.glob)) return constantGlobals.get(arg.glob)
+                    return arg
+                }).map((arg, idx) => {
+                    if (typeof arg != 'object') return arg
+                    if (!('reg' in arg)) return arg
+                    if (!idx) return arg
+                    if (constantValues.has(arg.reg)) return constantValues.get(arg.reg)
                     return arg
                 })
             }
@@ -387,8 +408,18 @@ function mergeBlocks(blocks) {
         break
     }
 }
+function prepareOptimizations(blocks) {
+    for (const block of blocks) {
+        for (const op of block.ops) {
+            for (const i in op.args) {
+                if (typeof op.args[i] == 'boolean') op.args[i] = +op.args[i]
+            }
+        }
+    }
+}
 
  function optimize(u, blocks) {
+    prepareOptimizations(blocks)
     if (_middlegen.options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
