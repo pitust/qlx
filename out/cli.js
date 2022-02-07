@@ -1,80 +1,34 @@
-"use strict";var _fs = require('fs');
-var _plugins = require('./plugins');
+"use strict";Object.defineProperty(exports, "__esModule", {value: true});
+var _typechk = require('./typechk');
+var _middlegen = require('./middlegen');
+var _codegen = require('./codegen');
+var _fs = require('fs');
 var _qlxemit = require('./qlxemit');
 
-let paramCallback
-let inp = null
-let out = null
-let decode_trace = null
-
-for (const arg of process.argv.slice(2)) {
-    if (paramCallback) {
-        paramCallback(arg)
-        paramCallback = null
-        continue
+ function onCLIParseComplete(o, input, output) {
+    Object.assign(_middlegen.options, o)
+    if (_middlegen.options.max) {
+        _middlegen.options.noEnd = true
+        _middlegen.options.bindLoads = true
+        _middlegen.options.noSafeAbort = true
+        _middlegen.options.eliminateBranches = true
+        _middlegen.options.reorderBlocks = true
+        _middlegen.options.constProp = true
+        _middlegen.options.eliminateDeadCode = true
+        _middlegen.options.mergePrint = true
+        _middlegen.options.max = true
     }
-
-    if (arg == '--plugin') {
-        paramCallback = plg => {
-            _plugins.loadPlugin.call(void 0, plg)
+    const writeCode = (code) => (output ? _fs.writeFileSync.call(void 0, output, code) : console.log(code))
+    if (_middlegen.options.ssa) {
+        const u = _middlegen.generateSSA.call(void 0, input)
+        if (!_typechk.checkAllTypes.call(void 0, u)) {
+            console.log('fatal error: type check failed; exiting')
+            process.exit(1)
         }
-        continue
+        _codegen.generateCode.call(void 0, u, writeCode)
+    } else {
+        _qlxemit.compileCode.call(void 0, input, writeCode)
     }
-    if (arg.startsWith('--plugin=')) {
-        _plugins.loadPlugin.call(void 0, arg.slice(9))
-        continue
-    }
-
-    if (arg == '-o' || arg == '--output') {
-        paramCallback = theout => {
-            out = theout
-        }
-        continue
-    }
-    if (arg.startsWith('-o') || arg.startsWith('--output=')) {
-        out = arg.slice(arg[1] == '-' ? 9 : 2)
-        continue
-    }
-    if (arg == '--decode') {
-        paramCallback = theout => {
-            decode_trace = theout
-        }
-        continue
-    }
-    if (arg.startsWith('--decode=')) {
-        decode_trace = arg.slice(9)
-        continue
-    }
-
-    if (inp) {
-        console.log('error: multiple inputs!')
-        process.exit(1)
-    }
-    inp = arg
-}
-
-if (!inp) {
-    console.log('error: no input!')
-    process.exit(1)
-}
-
-if (decode_trace) {
-    if (!out) {
-        console.log('error: cannot read mapfiles without output!')
-        process.exit(1)
-    }
-    if (
-        _plugins.checkForMixin(
-            '@qlx/cli:load-mapfile',
-            _fs.readFileSync.call(void 0, out + '.map').toString()
-        ) === false ||
-        _plugins.checkForMixin('@qlx/cli:lookup-in-map', decode_trace) === false
-    ) {
-        console.log('error: cannot file mapfile mixins!')
-        process.exit(1)
-    }
-    process.exit(0)
-}
-
-if (out) _qlxemit.compileCode.call(void 0, inp, out)
-else _qlxemit.compileCode.call(void 0, inp)
+} exports.onCLIParseComplete = onCLIParseComplete;
+// if (out) compileCode(inp, out)
+// else compileCode(inp)
