@@ -57,6 +57,8 @@ export interface Options {
     reorderBlocks: boolean
     constProp: boolean
     max: boolean
+    eliminateDeadCode: boolean
+    mergePrint: boolean
     interleaveSsa: boolean
 }
 export const options: Options = <Options>{}
@@ -217,7 +219,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     console.log(node)
     assert(false, 'todo: handle ' + node.type)
 }
-export function dumpSSA(unit: SSAUnit) {
+export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
     // for now
     // TODO: this should go to typechk/gen
     let i = 0
@@ -227,6 +229,7 @@ export function dumpSSA(unit: SSAUnit) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
     for (const block of unit.blocks) {
+        if (b && !b.includes(block)) continue
         console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)
         for (const op of block.ops) {
             console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args)

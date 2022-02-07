@@ -14,6 +14,8 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         options.eliminateBranches = true
         options.reorderBlocks = true
         options.constProp = true
+        options.eliminateDeadCode = true
+        options.mergePrint = true
         options.max = true
     }
     const writeCode = (code: string) => (output ? writeFileSync(output, code) : console.log(code))

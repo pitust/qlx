@@ -5,11 +5,13 @@ options = {
     'no-end': 'remove the last `end` opcode from the code',
     'no-safe-abort': '[ssa] disable compiler-generated safety abort loops',
     'dump-ssa': '[ssa] dump the SSA generated',
-    'bind-loads': '[ssa] bind registers to locals when loaded.',
-    'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough.',
+    'bind-loads': '[ssa] bind registers to locals when loaded',
+    'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough',
     'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order',
     'max': '[ssa] enable as much stuff as possible',
     'const-prop': '[ssa] propagate constants accross the code',
+    'eliminate-dead-code': '[ssa] eliminate some dead instructions.',
+    'merge-print': '[ssa] merge sequential constant-value prints left by the optimizer',
     'interleave-ssa': '[ssa] interlave code and SSA opcodes',
 }
 

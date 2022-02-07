@@ -10,65 +10,7 @@ import {
     Type,
     dumpSSA,
 } from './middlegen'
-import { optimize } from './optimizer'
-
-// reorder blocks to maximize fallthrough savings
-function orderBlocks(
-    blocks: Set<SSABlock>,
-    b0: SSABlock,
-    afterBlock: Map<SSABlock, SSABlock>
-): SSABlock[] {
-    const order: SSABlock[] = []
-    if (options.reorderBlocks) {
-        const bset = new Set(blocks.keys())
-        order.push(b0)
-        bset.delete(b0)
-        while (bset.size) {
-            const blockHeat = new Map<SSABlock, number>([...blocks.values()].map(e => [e, 0]))
-            for (const b of blocks) {
-                for (const t of b.targets) blockHeat.set(t, blockHeat.get(t) + 1)
-            }
-            const t = order[order.length - 1].targets.filter(e => bset.has(e))
-            if (t.length == 0) {
-                const b = <SSABlock>bset.keys().next().value
-                bset.delete(b)
-                order.push(b)
-                continue
-            }
-            if (t.length == 1) {
-                bset.delete(t[0])
-                order.push(t[0])
-                continue
-            }
-            if (blockHeat.get(t[0]) < blockHeat.get(t[1])) {
-                bset.delete(t[0])
-                order.push(t[0])
-            } else {
-                bset.delete(t[1])
-                order.push(t[1])
-            }
-        }
-    } else {
-        const bset = new Set(blocks.keys())
-        order.push(b0)
-        bset.delete(b0)
-        while (bset.size) {
-            const t = order[order.length - 1].targets.filter(e => bset.has(e))
-            if (t.length == 0) {
-                const b = <SSABlock>bset.keys().next().value
-                bset.delete(b)
-                order.push(b)
-                continue
-            }
-            for (const k of t) {
-                bset.delete(k)
-                order.push(k)
-            }
-        }
-    }
-    for (let i = 1; i < order.length; i++) afterBlock.set(order[i], order[i - 1])
-    return order
-}
+import { optimize, orderBlocks } from './optimizer'
 
 function immref(arg: OpArg): string {
     if (typeof arg == 'number') return `${arg}`
@@ -79,9 +21,10 @@ function immref(arg: OpArg): string {
     console.log(`error: no rtti support rn!`)
     process.exit(2)
 }
+
 export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
     const afterBlock = new Map<SSABlock, SSABlock>()
-    const blocks = orderBlocks(unit.blocks, unit.startBlock, afterBlock)
+    const blocks = orderBlocks(unit.blocks, unit.startBlock)
     optimize(unit, blocks)
     if (options.dumpSsa) {
         dumpSSA(unit)
@@ -92,6 +35,7 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
         i => () =>
             `b_${i++}`
     )(0)
+    for (let i = 1; i < blocks.length; i++) afterBlock.set(blocks[i], blocks[i - 1])
     const bnames = new Map<SSABlock, string>()
     const usedlabels = new Set<string>()
     bnames.set(unit.startBlock, 'entry')
