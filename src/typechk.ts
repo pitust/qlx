@@ -39,6 +39,17 @@ function continueBlockCheck(
     block: SSABlock, mod: string, func: string, entryTypes: Map<number, Type>,
     vTy: Map<string, Type>, gTy: Map<string, Type>
 ) {
+    // localTypes: Map<number, Type>
+    // module: string
+    // func: string
+    // didCheck: boolean
+    const check: CachedTypecheck = {
+        localTypes: new Map(entryTypes),
+        module: mod,
+        func,
+        didCheck: true
+    }
+
     if (checkedBlocks.has(block)) {
         next_check: for (const check of checkedBlocks.get(block)) {
             if (check.localTypes.size != entryTypes.size) continue
@@ -50,7 +61,10 @@ function continueBlockCheck(
             console.log('block is in cache!')
             return
         }
+    } else {
+        checkedBlocks.set(block, new Set())
     }
+    checkedBlocks.get(block)!.add(check)
     if (!checked) return
     const ltypes = new Map(entryTypes.entries())
     for (const op of block.ops) {
@@ -67,6 +81,18 @@ function continueBlockCheck(
                 gTy.set(<string>op.args[0], (<{ type: Type }>op.args[1]).type)
             }
             break
+        case Opcode.StInitGlob:
+            if (!gTy.has(<string>op.args[0])) {
+                gTy.set(<string>op.args[0], immtype(op.args[1], ltypes))
+            }
+            if (!sameType(gTy.get(<string>op.args[0]), immtype(op.args[1], ltypes))) {
+                checked = false
+                reportTypeDiff(
+                    gTy.get(<string>op.args[0]),
+                    immtype(op.args[1], ltypes),
+                    'cannot store value of type %a to {}::{} of type %b', mod, op.args[0]
+                )
+            }
         case Opcode.StGlob:
             if (!gTy.has(<string>op.args[0])) {
                 checked = false

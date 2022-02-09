@@ -92,11 +92,17 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
 
+
+
+
+
+
 const getreg = (
     i => () =>
         i++
 )(1)
 function doGenerateExpr(node, ctx) {
+    const meta = { line: node.codeline, range: node.range }
     if (node.type == 'number') {
         return +thestr(node.children[0])
     }
@@ -106,6 +112,8 @@ function doGenerateExpr(node, ctx) {
         const rhs = theast(node.children[2])
         const reg = getreg()
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: Opcode.BinOp,
             args: [{ reg }, opc, doGenerateExpr(lhs, ctx), doGenerateExpr(rhs, ctx)],
         })
@@ -115,6 +123,8 @@ function doGenerateExpr(node, ctx) {
         const vname = thestr(node.children[0])
         const reg = getreg()
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: Opcode.TargetOp,
             args: ['_lookupblox', { reg }, vname],
         })
@@ -124,6 +134,8 @@ function doGenerateExpr(node, ctx) {
         const vname = thestr(node.children[0])
         const reg = getreg()
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: ctx.glob.has(vname) ? Opcode.LdGlob : Opcode.LdLoc,
             args: [{ reg }, vname],
         })
@@ -145,6 +157,7 @@ function ssablk() {
     }
 }
 function doGenerateSSA(node, ctx) {
+    const meta = { line: node.codeline, range: node.range }
     if (node.type == 'programnode') {
         for (const c of node.children) {
             doGenerateSSA(theast(c), ctx)
@@ -153,6 +166,30 @@ function doGenerateSSA(node, ctx) {
     }
     if (node.type == 'blocknode') {
         for (const c of node.children) doGenerateSSA(theast(c), ctx)
+        return
+    }
+    if (node.type == 'while') {
+        const condblk = ssablk()
+        const body = ssablk()
+        const fwd = ssablk()
+        ctx.currentBlock.cond = JumpCond.Always
+        ctx.currentBlock.condargs = []
+        ctx.currentBlock.targets = [condblk]
+        
+        ctx.currentBlock = condblk
+        const condvalue = doGenerateExpr(theast(node.children[0]), ctx)
+        ctx.currentBlock.cond = JumpCond.TestBoolean
+        ctx.currentBlock.condargs = [condvalue]
+        ctx.currentBlock.targets = [body, fwd]
+        ctx.currentBlock = body
+        for (const b of theast(node.children[1]).children) doGenerateSSA(theast(b), ctx)
+        ctx.currentBlock.cond = JumpCond.Always
+        ctx.currentBlock.condargs = []
+        ctx.currentBlock.targets = [condblk]
+        ctx.currentBlock = fwd
+        ctx.blocks.add(condblk)
+        ctx.blocks.add(body)
+        ctx.blocks.add(fwd)
         return
     }
     if (node.type == 'if') {
@@ -204,12 +241,36 @@ function doGenerateSSA(node, ctx) {
     }
     if (node.type == 'typedlet') {
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: ctx.isGlobal ? Opcode.TypeGlob : Opcode.TypeLoc,
             args: [thestr(node.children[1]), doGenerateType(theast(node.children[0]))],
         })
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
             args: [thestr(node.children[1]), doGenerateExpr(theast(node.children[2]), ctx)],
+        })
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[0]))
+        return
+    }
+    if (node.type == 'let') {
+        ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
+            op: ctx.isGlobal ? Opcode.StInitGlob : Opcode.StInitLoc,
+            args: [thestr(node.children[0]), doGenerateExpr(theast(node.children[1]), ctx)],
+        })
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[0]))
+        return
+    }
+    if (node.type == 'set') {
+        ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
+            op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc, // todo: store to globals from within functions
+            args: [thestr(node.children[0]), doGenerateExpr(theast(node.children[1]), ctx)],
         })
         if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
         return
@@ -218,6 +279,8 @@ function doGenerateSSA(node, ctx) {
         if (theast(node.children[0]).type == 'blox') {
             // direct emission
             ctx.currentBlock.ops.push({
+                meta,
+                pos: node.pos,
                 op: Opcode.TargetOp,
                 args: ['print.direct', thestr(theast(node.children[0]).children[0])],
             })
@@ -225,6 +288,8 @@ function doGenerateSSA(node, ctx) {
         } else {
             // value emission
             ctx.currentBlock.ops.push({
+                meta,
+                pos: node.pos,
                 op: Opcode.TargetOp,
                 args: ['print.ref', doGenerateExpr(theast(node.children[0]), ctx)],
             })
@@ -233,6 +298,8 @@ function doGenerateSSA(node, ctx) {
     }
     if (node.type == 'printflushnode') {
         ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
             op: Opcode.TargetOp,
             args: ['print.flush', doGenerateExpr(theast(node.children[0]), ctx)],
         })
@@ -285,6 +352,7 @@ function doGenerateSSA(node, ctx) {
     doGenerateSSA(_parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, file).toString()), ctx)
     ctx.currentBlock.cond = JumpCond.Abort
     ctx.currentBlock.ops.push({
+        pos: '<compiler generated code>',
         op: Opcode.End,
         args: [],
     })

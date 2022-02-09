@@ -1,10 +1,7 @@
-let foo: float = + 2 2
-if != 4 foo do
-    printf "2+2 is in fact {}" foo
-else
-    printf "two plus two is four"
+let i = 3
+while true do
+  printf "i: {}" i
+  printflush @message1
+  
+  i = + i 1
 end
-printflush @message1
-//     ^ ^
-//     | \- support.type.primitive.qlx
-//     \- keyword.operator.type.annotation.qlx

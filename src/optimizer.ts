@@ -169,6 +169,7 @@ function eliminateDeadCode(blocks: SSABlock[]) {
     }
 }
 function bindLoads(blocks: SSABlock[]) {
+    // load forwarding
     for (const match of findall(blocks, op => op.op == Opcode.LdGlob)) {
         const r = reg(match.op.args[0])
         const tgd = str(match.op.args[1])
@@ -186,6 +187,7 @@ function bindLoads(blocks: SSABlock[]) {
             if (op.op == Opcode.Call) break // yeah calls break this optimization
         }
     }
+    // remove unused global loads
     for (const match of findall(blocks, op => op.op == Opcode.LdGlob)) {
         const r = reg(match.op.args[0])
         const tgd = str(match.op.args[1])
@@ -200,6 +202,7 @@ function bindLoads(blocks: SSABlock[]) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
+    // forward blox into variables
     for (const match of findall(
         blocks,
         op => op.op == Opcode.TargetOp && op.args[0] == '_lookupblox'
@@ -300,6 +303,7 @@ function propagateConstants(blocks: SSABlock[]): boolean {
                     else constantValues.set(out, 0)
                     replace({
                         op: Opcode.Move,
+                        pos: op.pos,
                         args: [{ reg: out }, constantValues.get(out)],
                     })
                 }
@@ -307,6 +311,7 @@ function propagateConstants(blocks: SSABlock[]): boolean {
                     constantValues.set(out, left + right)
                     replace({
                         op: Opcode.Move,
+                        pos: op.pos,
                         args: [{ reg: out }, constantValues.get(out)],
                     })
                 }
@@ -349,6 +354,14 @@ function propagateConstants(blocks: SSABlock[]): boolean {
             blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) == 0)]]
             blk.condargs = []
         }
+        if (
+            blk.cond == JumpCond.TestBoolean &&
+            typeof blk.condargs[0] == 'number'
+        ) {
+            blk.cond = JumpCond.Always
+            blk.targets = [blk.targets[+(blk.condargs[0] == 0)]]
+            blk.condargs = []
+        }
         gmap.set(blk, constantGlobals)
     }
 
@@ -375,6 +388,7 @@ function mergePrintOperations(blocks: SSABlock[]) {
                 } else {
                     replace({
                         op: Opcode.TargetOp,
+                        pos: op.pos,
                         args: ['print.direct', `"${op.args[1]}"`],
                     })
                     wasprinting = true
