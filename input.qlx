@@ -1,7 +1,9 @@
+fn printi { arg: float } -> void
+  printf "i: {}" arg
+  printflush @message1
+end
 let i = 3
 while true do
-  printf "i: {}" i
-  printflush @message1
-  
+  printi/1 i
   i = + i 1
 end

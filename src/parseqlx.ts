@@ -64,8 +64,8 @@ export class ast {
     }
 }
 const $ = {
-    fn(name: string, body: ast, argc: number): ast {
-        return new ast('fnnode', [name, body, '' + argc])
+    fn(name: string, body: ast, argc: number, args: ast): ast {
+        return new ast('fnnode', [name, body, '' + argc, args])
     },
     block(nodes: ast[]) {
         return new ast('blocknode', nodes)
@@ -116,17 +116,26 @@ const $ = {
 
 function parsefn() {
     const name = code.shift()!.lexeme
-    let args = []
+    let args: ast = []
     if (code[0].lexeme == '{') {
         code.shift()
-        while ([...code][0].lexeme != '}') args.push(code.shift()!)
+        while ([...code][0].lexeme != '}') {
+            const name = code.shift()!.lexeme
+            assert(code.shift()!.lexeme == ':')
+            args.push(new ast('arg', [
+                name, // name
+                parsetype() // type,
+            ]))
+        }
         code.shift()
     }
+    assert(code.shift()!.lexeme == '->')
+    let rty = parsetype()
     const body = parsedo()
     if (args.length) {
-        return $.fn(name, $.block([...args.map((e, i) => $.bindArg(e, i)), body]), args.length)
+        return $.fn(name, $.block([...args.map((e, i) => $.bindArg(e, i)), body]), args.length, rty)
     }
-    return $.fn(name, body, 0)
+    return $.fn(name, body, 0, rty)
 }
 function parsedo() {
     const nodes: ast[] = []
@@ -276,6 +285,7 @@ function parseswitch() {
 function parsetype() {
     const typ = code.shift()!.lexeme
     if (typ == 'float') return new ast('floatty', [])
+    if (typ == 'void') return new ast('voidty', [])
     if (typ == 'str') return new ast('strty', [])
     return new ast('namedty', [typ])
 }

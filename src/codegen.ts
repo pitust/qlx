@@ -36,16 +36,6 @@ const hlcolors = {
     number: '\x00r\x002',
 }
 
-function immref(arg: OpArg): string {
-    if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
-    if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
-    if ('reg' in arg) return `${ri}_main::_init::r${arg.reg}${nostyle}`
-    if ('glob' in arg) return `${glob}_main::_globals::${arg.glob}${nostyle}`
-    if ('blox' in arg) return glob + arg.blox + nostyle
-    console.log(`error: no rtti support rn!`)
-    process.exit(2)
-}
-
 const kw = [
     'fn',
     'do',
@@ -68,7 +58,7 @@ const kw = [
     'read',
     'seton',
 ]
-const kwregex = new RegExp('\\b' + kw.join('|') + '\\b', 'g')
+const kwregex = new RegExp('\\b(' + kw.join('|') + ')\\b', 'g')
 function highlight(k: string, hotrange = [0, 0]) {
     k = k
         .replaceAll(/"[^"]*"/g, re => '%s%' + re + '%S%')
@@ -111,11 +101,13 @@ function highlight(k: string, hotrange = [0, 0]) {
         }
         if (pos >= hotrange[0] && pos < hotrange[0]+hotrange[1] && !state) {
             state = true
-            output += '\x00r\x00+\x00' + mode
+            output += '\x00r\x00+'
+            if (mode) output += '\x00'+mode
         }
         if (pos >= hotrange[0]+hotrange[1] && state) {
-            output += '\x00-\x00r\x00' + mode
+            output += '\x00-\x00r'
             state = false
+            if (mode) output += '\x00'+mode
         }
         if (k[i] == '{' && k[i+1] == '}' && is_str) {
             output += hlcolors.ident + '{}' + hlcolors.imm
@@ -129,7 +121,17 @@ function highlight(k: string, hotrange = [0, 0]) {
     return output
 }
 
-export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
+function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: string) => void) {
+    function immref(arg: OpArg): string {
+        if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
+        if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
+        if ('reg' in arg) return `${ri}${mod}::${fn}::r${arg.reg}${nostyle}`
+        if ('glob' in arg) return `${glob}${mod}::_init::${arg.glob}${nostyle}`
+        if ('blox' in arg) return glob + arg.blox + nostyle
+        console.log(`error: no rtti support rn!`)
+        process.exit(2)
+    }
+
     const afterBlock = new Map<SSABlock, SSABlock>()
     let blocks = orderBlocks(unit.blocks, unit.startBlock)
     // run optimization passes 8 times
@@ -155,7 +157,7 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
     let programLongestOpcode = 4
     for (const blk of blocks) {
         const id = blookup(blk)
-        code.push(`${label}_main::_init.${id}${nostyle}:`)
+        code.push(`${label}${mod}::${fn}.${id}${nostyle}:`)
         for (const op of blk.ops) {
             let watermark = code.length
             if (options.interleaveSsa)
@@ -166,13 +168,22 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
                 )
             if (op.op == Opcode.TypeGlob || op.op == Opcode.TypeLoc) {
             } else if (op.op == Opcode.StGlob || op.op == Opcode.StInitGlob) {
-                code.push(`    ${fmt.assign}set ${glob}_main::_globals::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
+                code.push(`    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.Move) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
+            } else if (op.op == Opcode.BindArgument) {
+                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn} ${ri}arg-${op.args[1]}.${mod}::${op.args[1]}${nostyle}`)
+            } else if (op.op == Opcode.Call) {
+                for (let i = 0;i < op.args.length - 2;i++) {
+                    code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
+                }
+                code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}2${nostyle}`)
+                code.push(`    ${fmt.assign}jump ${selector}always ${label}fn.${mod}::${op.args[1]}${nostyle}`) 
+                // process.exit(69)
             } else if (op.op == Opcode.LdGlob) {
-                if (typeof op.args[1] == 'object' && 'reg' in op.args[1])
-                    console.log(`warn: forward loadbinding for globals should occur!`)
-                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_main::_globals::${op.args[1]}${nostyle}`)
+                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${op.args[1]}${nostyle}`)
+            } else if (op.op == Opcode.LdLoc) {
+                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::${fn}::${op.args[1]}${nostyle}`)
             } else if (op.op == Opcode.BinOp) {
                 code.push(
                     `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(op.args[0])} ${immref(op.args[2])} ${immref(
@@ -188,6 +199,8 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
                 }
                 if (!(<string>op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[<keyof typeof ops>op.args[0]]()}`)
+            } else if (op.op == Opcode.ReturnVoid) {
+                code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.End) {
                 if (
                     options.noEnd &&
@@ -197,16 +210,18 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
                     continue
                 }
                 code.push(`    ${fmt.cflow}end${nostyle}`)
-                break
+            } else if (op.op == Opcode.Function) {
+                // `Function` is a typechecker hint.
             } else {
                 console.log(`error: unknown op:`, Opcode[op.op], ...op.args)
                 process.exit(2)
             }
             for (let i = watermark; i < code.length; i++) {
                 programLongestOpcode = Math.max(code[i].replaceAll(/\x00./g, '').length + 4, programLongestOpcode)
-                code[i] += ' #@@ ' + op.pos + '\t'
+                code[i] += ' #@@ ' + op.pos + '  \t'
                 if (op.meta) code[i] += '| ' + nostyle + highlight(op.meta.line, op.meta.range)
             }
+            if ([Opcode.Return, Opcode.ReturnVoid, Opcode.End].includes(op.op)) break
         }
         if (options.interleaveSsa)
             code.push(
@@ -224,20 +239,26 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
             afterBlock.get(blk.targets[1]) == blk
         if (blk.cond == JumpCond.Always) {
             if (!hasCons) {
-                const target = `_main::_init.${blookup(blk.targets[0])}`
+                const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target}${nostyle}`)
             } else code.push(`    ${comment}# falls through`)
+        } else if (blk.cond == JumpCond.AlwaysNoMerge) {
+            if (!hasCons) {
+                const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
+                usedlabels.add(target)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${comment}# ${ri}note: this should never happen!`)
+            } else code.push(`    ${comment}# (call block falls through)`)
         } else if (blk.cond == JumpCond.TestBoolean) {
             if (!hasCons) {
-                const target = `_main::_init.${blookup(blk.targets[0])}`
+                const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# consequent`)
             } else {
                 code.push(`    ${comment}# consequent (eliminated)`)
             }
             if (!hasAlt) {
-                const target = `_main::_init.${blookup(blk.targets[1])}`
+                const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# alternate`)
             } else {
@@ -247,7 +268,7 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
             if (!options.noSafeAbort) code.push(`    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`)
             else code.push(`    ${comment}# abort!`)
         } else {
-            code.push(`    ${comment}# branch: ${JumpCond[blk.cond]}`)
+            code.push(`    ${comment}# ${fmt.rawio}TODO${comment}: branch: ${JumpCond[blk.cond]}`)
         }
     }
     for (let i = 0; i < code.length; i++) {
@@ -293,3 +314,18 @@ export function generateCode(unit: SSAUnit, writeCode: (s: string) => void) {
         }
     }))
 }
+export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: (s: string) => void) {
+    const buf = [process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx']
+    generateUnit('_main', '_init', units[0], code => {
+        buf.push(code)
+    })
+    for (const [nm, u] of units[1]) {
+        buf.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
+        generateUnit('_main', nm, u, code => {
+            buf.push(code)
+        })
+    }
+    writeCode(buf.join('\n'))
+}
+
+

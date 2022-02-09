@@ -13,9 +13,11 @@ function thestr(t: ast | string): string {
     return t
 }
 export enum Opcode {
+    BindArgument,
     LdGlob,
     StGlob,
     Move,
+    Function,
     StInitGlob,
     StInitLoc,
     TypeLoc,
@@ -31,6 +33,7 @@ export enum Opcode {
 }
 export enum JumpCond {
     Always,
+    AlwaysNoMerge, // we do not want to merge function call blocks, as they inhibit optimizations.
     LessThan,
     GreaterThan,
     LessEqual,
@@ -44,7 +47,7 @@ export enum PrimitiveType {
     Bool,
     Float,
     String,
-    Null,
+    Void,
 }
 export interface Options {
     ssa: boolean
@@ -106,6 +109,35 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
     if (node.type == 'number') {
         return +thestr(node.children[0])
     }
+    if (node.type == 'callnode') {
+        const [tgdobj, callobj] = node.children
+        const tgd = thestr(tgdobj)
+        const callargs = theast(callobj).children
+        const reg = getreg()
+        
+        // optimization: put all calls in their own blocks to permit optimizations
+        const fwd: SSABlock = ssablk()
+        const fwd2: SSABlock = ssablk()
+        ctx.currentBlock.cond = JumpCond.AlwaysNoMerge
+        ctx.currentBlock.condargs = []
+        ctx.currentBlock.targets = [fwd]
+        
+        fwd.cond = JumpCond.AlwaysNoMerge
+        fwd.condargs = []
+        fwd.targets = [fwd2]
+        
+        ctx.currentBlock = fwd
+        fwd.ops.push({
+            meta,
+            pos: node.pos,
+            op: Opcode.Call,
+            args: [{ reg }, tgd, ...callargs.map(e => doGenerateExpr(e, ctx))],
+        })
+        ctx.currentBlock = fwd2
+        ctx.blocks.add(fwd)
+        ctx.blocks.add(fwd2)
+        return reg;
+    }
     if (node.type == 'binop') {
         const opc = thestr(node.children[0])
         const lhs = theast(node.children[1])
@@ -146,6 +178,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
 }
 function doGenerateType(node: ast): OpArg {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
+    if (node.type == 'voidty') return { type: PrimitiveType.Void }
     assert(false, 'TODO: type ' + node.type)
 }
 function ssablk(): SSABlock {
@@ -156,6 +189,7 @@ function ssablk(): SSABlock {
         targets: [],
     }
 }
+const functionGenerationQueue = new Set<ast>()
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'programnode') {
@@ -305,6 +339,40 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         })
         return
     }
+    if (node.type == 'fnnode') {
+        const name = thestr(node.children[0])
+        const blk = theast(node.children[1])
+        const args: ast[] = []
+        const argc = +thestr(node.children[2])
+        const ret = doGenerateType(theast(node.children[3]))
+        if (argc) args.push(...blk.children.slice(0, argc))
+        ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
+            op: Opcode.Function,
+            args: [name, ret, ...args.map(e => doGenerateType(theast(theast(theast(e).children[0]).children[1])))]
+        })
+        functionGenerationQueue.add(node)
+        return
+    }
+    if (node.type == 'callnode') {
+        doGenerateExpr(node, ctx)
+        return
+    }
+    if (node.type == 'bindarg') {
+        const [c0, idx_] = node.children
+        const idx = +thestr(idx_)
+        const [nm_, typ] = theast(c0).children
+        const nm = thestr(nm_)
+        ctx.currentBlock.ops.push({
+            meta,
+            pos: node.pos,
+            op: Opcode.BindArgument,
+            args: [nm, idx, doGenerateType(typ)]
+        })
+        return
+    }
+
 
     console.log(node)
     assert(false, 'todo: handle ' + node.type)
@@ -332,33 +400,55 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
         }
     }
 }
-export function generateSSA(file: string): SSAUnit {
-    const blk: SSABlock = {
-        ops: [],
-        cond: JumpCond.Abort,
-        condargs: [],
-        targets: [],
+export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
+    function generateUnit(g: boolean, f: string, body: ast) {
+        const blk: SSABlock = {
+            ops: [],
+            cond: JumpCond.Abort,
+            condargs: [],
+            targets: [],
+        }
+        const ctx = {
+            moduleName: '_main',
+            functionName: f,
+            startBlock: blk,
+            currentBlock: blk,
+            isGlobal: g,
+            blocks: new Set([blk]),
+            glob: new Set<string>(),
+        }
+    
+        doGenerateSSA(body, ctx)
+        if (g) {
+            ctx.currentBlock.cond = JumpCond.Abort
+            ctx.currentBlock.ops.push({
+                pos: '<compiler generated code>',
+                op: Opcode.End,
+                args: [],
+            })
+        } else {
+            ctx.currentBlock.cond = JumpCond.Abort
+            ctx.currentBlock.ops.push({
+                pos: '<compiler generated code>',
+                op: Opcode.ReturnVoid,
+                args: [],
+            })
+        }
+        return {
+            startBlock: blk,
+            blocks: ctx.blocks
+        }
     }
-    const ctx = {
-        moduleName: '_mod',
-        functionName: '_init',
-        startBlock: blk,
-        currentBlock: blk,
-        isGlobal: true,
-        blocks: new Set([blk]),
-        glob: new Set<string>(),
+    const root = generateUnit(true, '_init', parseprogram(readFileSync(file).toString()))
+    const cu = new Map()
+    for (const n of functionGenerationQueue) {
+        const name = thestr(n.children[0])
+        const body = theast(n.children[1])
+        cu.set(name, generateUnit(false, name, body))
+        if (theast(n.children[2]).name == 'voiddty') {
+            cu.get(name)
+        }
     }
-
-    doGenerateSSA(parseprogram(readFileSync(file).toString()), ctx)
-    ctx.currentBlock.cond = JumpCond.Abort
-    ctx.currentBlock.ops.push({
-        pos: '<compiler generated code>',
-        op: Opcode.End,
-        args: [],
-    })
-
-    return {
-        startBlock: blk,
-        blocks: ctx.blocks,
-    }
+    
+    return [root, cu]
 }

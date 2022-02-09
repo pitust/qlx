@@ -64,8 +64,8 @@ let currentfile = '<no file>', line = 0, col = 0, codeline = '', range = [0, 0]
     }
 } exports.ast = ast;
 const $ = {
-    fn(name, body, argc) {
-        return new ast('fnnode', [name, body, '' + argc])
+    fn(name, body, argc, args) {
+        return new ast('fnnode', [name, body, '' + argc, args])
     },
     block(nodes) {
         return new ast('blocknode', nodes)
@@ -119,14 +119,23 @@ function parsefn() {
     let args = []
     if (code[0].lexeme == '{') {
         code.shift()
-        while ([...code][0].lexeme != '}') args.push(code.shift())
+        while ([...code][0].lexeme != '}') {
+            const name = code.shift().lexeme
+            _assert2.default.call(void 0, code.shift().lexeme == ':')
+            args.push(new ast('arg', [
+                name, // name
+                parsetype() // type,
+            ]))
+        }
         code.shift()
     }
+    _assert2.default.call(void 0, code.shift().lexeme == '->')
+    let rty = parsetype()
     const body = parsedo()
     if (args.length) {
-        return $.fn(name, $.block([...args.map((e, i) => $.bindArg(e, i)), body]), args.length)
+        return $.fn(name, $.block([...args.map((e, i) => $.bindArg(e, i)), body]), args.length, rty)
     }
-    return $.fn(name, body, 0)
+    return $.fn(name, body, 0, rty)
 }
 function parsedo() {
     const nodes = []
@@ -276,6 +285,7 @@ function parseswitch() {
 function parsetype() {
     const typ = code.shift().lexeme
     if (typ == 'float') return new ast('floatty', [])
+    if (typ == 'void') return new ast('voidty', [])
     if (typ == 'str') return new ast('strty', [])
     return new ast('namedty', [typ])
 }
