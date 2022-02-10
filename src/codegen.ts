@@ -172,7 +172,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             } else if (op.op == Opcode.Move) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.BindArgument) {
-                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn} ${ri}arg-${op.args[1]}.${mod}::${op.args[1]}${nostyle}`)
+                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${op.args[1]}${nostyle}`)
             } else if (op.op == Opcode.Call) {
                 for (let i = 0;i < op.args.length - 2;i++) {
                     code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
