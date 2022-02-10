@@ -11,6 +11,7 @@ const options = {
     mergePrint: false,
     noEnd: false,
     noSafeAbort: false,
+    rawArgRefs: false,
     reorderBlocks: false,
     ssa: false,
     stripComments: false,
@@ -40,6 +41,7 @@ for (const arg of process.argv.slice(2)) {
     else if (arg == '-fmerge-print') options.mergePrint = true; 
     else if (arg == '-fno-end') options.noEnd = true; 
     else if (arg == '-fno-safe-abort') options.noSafeAbort = true; 
+    else if (arg == '-fraw-arg-refs') options.rawArgRefs = true; 
     else if (arg == '-freorder-blocks') options.reorderBlocks = true; 
     else if (arg == '-fssa') options.ssa = true; 
     else if (arg == '-fstrip-comments') options.stripComments = true; 
@@ -73,6 +75,8 @@ function _printHelpMessage() {
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa and -fno-safe-abort");
     console.log("    -fno-safe-abort         - disable compiler-generated safety abort loops");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fraw-arg-refs          - use raw argument references");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -freorder-blocks        - use weighted block reordering, rather than sequential block order");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -fssa                   - Enable experimental SSA codegen (single-statement assigned)");
@@ -91,6 +95,7 @@ if (options.mergePrint && !options.ssa) _printHelpMessage();
 if (options.noEnd && !options.ssa) _printHelpMessage();
 if (options.noEnd && !options.noSafeAbort) _printHelpMessage();
 if (options.noSafeAbort && !options.ssa) _printHelpMessage();
+if (options.rawArgRefs && !options.ssa) _printHelpMessage();
 if (options.reorderBlocks && !options.ssa) _printHelpMessage();
 if (!input) _printHelpMessage();
 onCLIParseComplete(options, input!, output);

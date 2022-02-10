@@ -11,6 +11,7 @@ options = {
     'max': '[ssa] enable as much stuff as possible',
     'no-end': '[ssa] [no-safe-abort] remove the last `end` opcode from the code',
     'no-safe-abort': '[ssa] disable compiler-generated safety abort loops',
+    'raw-arg-refs': '[ssa] use raw argument references',
     'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order',
     'ssa': 'Enable experimental SSA codegen (single-statement assigned)',
     'strip-comments': 'strip comments from the output to save on lines',
@@ -35,6 +36,7 @@ longest_name = 0
 for nam in options.keys():
     longest_name = len(nam) + 2 if len(nam) + 2 > longest_name else longest_name
 
+tsiface = ['export interface Options {']
 struct = ['const options = {']
 parsecode = [
     'let input = null;',
@@ -59,6 +61,7 @@ for opt in options.keys():
     paddng = " " * (4 + longest_name + 2) + "   "
     helplines = options[opt].splitlines()
     needs = []
+    tsiface.append(f'    {mapname(opt)}: boolean')
     while helplines[0][0] == '[':
         tag = helplines[0][1:].split('] ')[0]
         helplines[0] = helplines[0][3 + len(tag):]
@@ -76,7 +79,10 @@ for opt in options.keys():
     parsecode.append(f'    else if (arg == \'-f{opt}\') options.{mapname(opt)} = true; ')
     struct.append(f'    {mapname(opt)}: false,')
 
+tsiface.append('}')
 struct.append('}')
+with open('src/options.ts', 'w') as optionfile:
+    optionfile.write('\n'.join(tsiface))
 parsecode.append('    else if (arg.startsWith(\'-o\') && arg.length > 2) output = arg.slice(2)')
 parsecode.append('    else {')
 parsecode.append('        console.log(\'error: unknown argument:\', arg);')
