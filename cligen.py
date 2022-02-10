@@ -15,6 +15,14 @@ options = {
     'merge-blocks': '[ssa] merge blocks that must come after each other',
     'interleave-ssa': '[ssa] interlave code and SSA opcodes',
 }
+keydata = []
+for k in options.keys():
+    keydata.append(k)
+keydata.sort()
+options2 = {}
+for k in keydata:
+    options2[k] = options[k]
+options = options2
 
 def mapname(s: str) -> str:
     data = s.split('-')
