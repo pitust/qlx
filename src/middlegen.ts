@@ -49,22 +49,8 @@ export enum PrimitiveType {
     String,
     Void,
 }
-export interface Options {
-    ssa: boolean
-    stripComments: boolean
-    noEnd: boolean
-    bindLoads: boolean
-    noSafeAbort: boolean
-    dumpSsa: boolean
-    eliminateBranches: boolean
-    reorderBlocks: boolean
-    constProp: boolean
-    max: boolean
-    eliminateDeadCode: boolean
-    mergePrint: boolean
-    mergeBlocks: boolean
-    interleaveSsa: boolean
-}
+export { Options } from './options'
+import { Options } from './options'
 export const options: Options = <Options>{}
 export type Type = PrimitiveType
 export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string }
