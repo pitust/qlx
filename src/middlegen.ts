@@ -53,7 +53,7 @@ export { Options } from './options'
 import { Options } from './options'
 export const options: Options = <Options>{}
 export type Type = PrimitiveType
-export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string }
+export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string } | { arg: number }
 export interface SSAOp {
     pos: string
     meta?: {

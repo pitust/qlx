@@ -126,6 +126,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
         if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
         if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
         if ('reg' in arg) return `${ri}${mod}::${fn}::r${arg.reg}${nostyle}`
+        if ('arg' in arg) return `${ri}arg-${arg.arg}.${mod}::${fn}${nostyle}`
         if ('glob' in arg) return `${glob}${mod}::_init::${arg.glob}${nostyle}`
         if ('blox' in arg) return glob + arg.blox + nostyle
         console.log(`error: no rtti support rn!`)

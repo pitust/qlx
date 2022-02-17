@@ -422,18 +422,31 @@ function mergeBlocks(blocks: SSABlock[]) {
         break
     }
 }
-function prepareOptimizations(blocks: SSABlock[]) {
-    for (const block of blocks) {
-        for (const op of block.ops) {
-            for (const i in op.args) {
-                if (typeof op.args[i] == 'boolean') op.args[i] = +op.args[i]
+function performRawArgumentBinding(blocks: SSABlock[]) {
+    const name2id = new Map<string, OpArg>()
+    for (const blk of blocks) {
+        let wasprinting = false
+        for (const op of blk.ops) {
+            if (op.op == Opcode.BindArgument) {
+                const [name, id] = op.args
+                name2id.set(`${name}`, { arg: +`${id}` })
+                blk.ops = blk.ops.filter(e => e != op)
+            }
+        }
+    }
+    for (const blk of blocks) {
+        for (const op of blk.ops) {
+            if (op.op == Opcode.LdLoc) {
+                if (name2id.has(`${op.args[1]}`)) {
+                    op.op = Opcode.Move
+                    op.args[1] = name2id.get(`${op.args[1]}`)
+                }
             }
         }
     }
 }
-
 export function optimize(u: SSAUnit, blocks: SSABlock[]): SSABlock[] {
-    prepareOptimizations(blocks)
+    if (options.rawArgRefs) performRawArgumentBinding(blocks)
     if (options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
