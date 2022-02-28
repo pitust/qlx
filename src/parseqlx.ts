@@ -369,7 +369,7 @@ function parseword(): ast {
             return code.shift(), new ast('seton', [parseword(), parseword()])
         if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0].lexeme)) return $.number(+code.shift()!.lexeme)
         if (code[0].lexeme[0] == ':') return $.number(uid(code.shift()!.lexeme.slice(1)))
-        if (code[1].lexeme == '=') return parseset()
+        if (code.length > 1 && code[1].lexeme == '=') return parseset()
         return $.var(code.shift()!.lexeme)
     })()
     line = oldstate.line

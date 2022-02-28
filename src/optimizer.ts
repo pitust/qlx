@@ -149,7 +149,7 @@ function eliminateDeadCode(blocks: SSABlock[]) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
-    for (const match of findall(blocks, op => op.op == Opcode.StGlob)) {
+    for (const match of findall(blocks, op => op.op == Opcode.StGlob || op.op == Opcode.StInitGlob)) {
         const tgd = str(match.op.args[0])
         if (!tgd) continue
 
@@ -279,7 +279,7 @@ function propagateConstants(blocks: SSABlock[]): boolean {
                 replacementStream[replacementStream.length - 1] = op
                 replaced = true
             }
-            if (op.op == Opcode.StGlob && typeof op.args[1] == 'number') {
+            if ((op.op == Opcode.StGlob || op.op == Opcode.StInitGlob) && typeof op.args[1] == 'number') {
                 constantGlobals.set(str(op.args[0])!, op.args[1])
             }
             if (op.op == Opcode.Move && typeof op.args[1] == 'number') {
@@ -396,7 +396,8 @@ function mergePrintOperations(blocks: SSABlock[]) {
             } else if (op.op == Opcode.TargetOp && op.args[0] == 'print.direct') {
                 if (wasprinting) {
                     replacementStream.pop()
-                    replacementStream[replacementStream.length - 1].args[1] += `${op.args[1]}`
+                    const top = replacementStream[replacementStream.length - 1];
+                    top.args[1] = `"${str(top.args[1]).slice(1, -1)}${str(op.args[1]).slice(1, -1)}"`
                 }
                 wasprinting = true
             } else {
