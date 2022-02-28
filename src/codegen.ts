@@ -10,7 +10,7 @@ import {
     Type,
     dumpSSA,
 } from './middlegen'
-import { optimize, orderBlocks } from './optimizer'
+import { optimize, orderBlocks, calculateCost, calculateCounterCost, makeInliningChoice } from './optimizer'
 
 const ri = '\x005'
 const opc = '\x00+\x002'
@@ -121,6 +121,10 @@ function highlight(k: string, hotrange = [0, 0]) {
     return output
 }
 
+const optimizedFunctionBlocks = new Map<string, SSABlock[]>()
+const inliningCost = new Map<string, number>()
+const inliningCounterCost = new Map<string, number>()
+const functionCallReferenceSet = new Set<string>()
 function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: string) => void) {
     function immref(arg: OpArg): string {
         if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
@@ -135,8 +139,17 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
 
     const afterBlock = new Map<SSABlock, SSABlock>()
     let blocks = orderBlocks(unit.blocks, unit.startBlock)
+    inliningCounterCost.set(`${mod}::${fn}`, calculateCounterCost(blocks))
     // run optimization passes 8 times
-    for (let i = 0;i < 8;i++) blocks = optimize(unit, blocks)
+    for (let i = 0;i < 8;i++) blocks = optimize(unit, blocks, tfn => {
+        const choice = makeInliningChoice(inliningCost.get(`${mod}::${tfn}`), inliningCounterCost.get(`${mod}::${tfn}`))
+        console.log(`inlining choice for: inline[${tfn} into ${fn}]:`, choice)
+        return choice
+    }, tfn => {
+        return optimizedFunctionBlocks.get(`${mod}::${tfn}`)
+    })
+    inliningCost.set(`${mod}::${fn}`, calculateCost(blocks))
+    optimizedFunctionBlocks.set(`${mod}::${fn}`, blocks)
     if (options.dumpSsa) {
         dumpSSA(unit, blocks)
         return
@@ -173,14 +186,14 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             } else if (op.op == Opcode.Move) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.BindArgument) {
-                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${op.args[1]}${nostyle}`)
+                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.Call) {
                 for (let i = 0;i < op.args.length - 2;i++) {
                     code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
                 }
                 code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}2${nostyle}`)
                 code.push(`    ${fmt.assign}jump ${selector}always ${label}fn.${mod}::${op.args[1]}${nostyle}`) 
-                // process.exit(69)
+                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${op.args[1]}${nostyle}`)
             } else if (op.op == Opcode.LdLoc) {
@@ -316,16 +329,34 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     }))
 }
 export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: (s: string) => void) {
-    const buf = [process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx']
+    let buf = [process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx']
+    
+    // const argc = units[0].startBlock.ops.filter(e => e.op == Opcode.BindArgument).length
+    const refcounts = new Map<string, number>()
+    for (const [nm] of units[1]) refcounts.set(nm, 0)
+    
+    for (const [nm, u] of units[1]) {
+        for (const blk of u.blocks) {
+            for (const op of blk.ops) {
+                const tgd = `${op.args[1]}`
+                if (op.op == Opcode.Call) refcounts.set(tgd, refcounts.get(tgd)+1)
+            }
+        }
+    }
+    
+    let buffers = new Map<string, string[]>()
+    for (const [nm, u] of units[1]) {
+        let buf1 = []
+        buffers.set(`_main::${nm}`, buf1)
+        buf1.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
+        generateUnit('_main', nm, u, code => {
+            buf1.push(code)
+        })
+    }
     generateUnit('_main', '_init', units[0], code => {
         buf.push(code)
     })
-    for (const [nm, u] of units[1]) {
-        buf.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
-        generateUnit('_main', nm, u, code => {
-            buf.push(code)
-        })
-    }
+    for (const u of functionCallReferenceSet) buf.push(...buffers.get(u))
     writeCode(buf.join('\n'))
 }
 

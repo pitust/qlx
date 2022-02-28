@@ -159,8 +159,10 @@ function continueBlockCheck(
                 return
             }
             const opTypes = {
+                equal: PrimitiveType.Bool,
                 notEqual: PrimitiveType.Bool,
                 add: PrimitiveType.Float,
+                sub: PrimitiveType.Float,
             }
             if (!(<string>op.args[1] in opTypes)) {
                 console.log('Bad binop:', op.args[1])
@@ -173,7 +175,7 @@ function continueBlockCheck(
             // target ops are assumed to be fine
             break
         case Opcode.Function:
-            const target = op.args[0]
+            const target = <string>op.args[0]
             const argc = op.args.length - 2
             const ret = <{ type: Type }>op.args[1]
             const args = <{ type: Type }[]>op.args.slice(2)
@@ -185,8 +187,7 @@ function continueBlockCheck(
         case Opcode.ReturnVoid:
             break
         case Opcode.Call:
-            console.log(op)
-            const output = op.args[0]
+            const output = <{ reg: number }>op.args[0]
             const tgd = <string>op.args[1]
             const callargs = op.args.slice(2)
             if (!gFn.has(tgd)) {

@@ -12,9 +12,11 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         options.bindLoads = true
         options.noSafeAbort = true
         options.eliminateBranches = true
+        options.rawArgRefs = true
         options.reorderBlocks = true
         options.constProp = true
         options.eliminateDeadCode = true
+        options.inline = true
         options.mergePrint = true
         options.mergeBlocks = true
         options.max = true

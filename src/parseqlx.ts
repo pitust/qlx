@@ -88,7 +88,7 @@ const $ = {
     getlink(arg: ast) {
         return new ast('getlinknode', [arg])
     },
-    bindArg(name: string, idx: number) {
+    bindArg(name: ast, idx: number) {
         return new ast('bindarg', [name, '' + idx])
     },
     var(name: string) {
@@ -116,7 +116,7 @@ const $ = {
 
 function parsefn() {
     const name = code.shift()!.lexeme
-    let args: ast = []
+    let args: ast[] = []
     if (code[0].lexeme == '{') {
         code.shift()
         while ([...code][0].lexeme != '}') {

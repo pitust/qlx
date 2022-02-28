@@ -5,9 +5,10 @@ import {
     SSAOp,
     Opcode,
     OpArg,
-    Cond,
     JumpCond,
     dumpSSA,
+    getreg,
+    Cond,
 } from './middlegen'
 
 // reorder blocks to maximize fallthrough savings
@@ -77,6 +78,13 @@ function findall(blocks: SSABlock | SSABlock[], pred: (o: SSAOp, b: SSABlock) =>
     }
     return output
 }
+function findin(ops: SSAOp[], pred: (o: SSAOp, b: SSAOp[]) => boolean) {
+    const output: SSAOp[] = []
+    for (const op of ops) {
+        if (pred(op, ops)) output.push(op)
+    }
+    return output
+}
 function findcond(blocks: SSABlock | SSABlock[], pred: (c: Cond, b: SSABlock) => boolean) {
     const output: { cond: Cond; blk: SSABlock }[] = []
     for (const blk of [blocks].flat()) {
@@ -96,6 +104,18 @@ function findallblk(blocks: SSABlock | SSABlock[], pred: (o: SSAOp, b: SSABlock)
         }
     }
     return output
+}
+function getprev(block: SSABlock, op: SSAOp): SSAOp | null {
+    let idx = block.ops.findIndex(top => op == top)
+    if (idx === -1) return null
+    if (idx - 1 < 0) return null
+    return block.ops[idx - 1] ?? null
+}
+function getnext(block: SSABlock, op: SSAOp): SSAOp | null {
+    let idx = block.ops.findIndex(top => op == top)
+    if (idx === -1) return null
+    if (idx + 1 >= block.ops.length) return null
+    return block.ops[idx + 1] ?? null
 }
 function usesreg(o: SSAOp, r: number): 'load' | 'store' | false {
     if (reg(o.args[0]) == r) return 'store'
@@ -129,6 +149,18 @@ function remap_args(
 function reg(arg: OpArg): number | null {
     if (typeof arg == 'object' && 'reg' in arg) return arg.reg
     return null
+}
+function glob(arg: OpArg): string | null {
+    if (typeof arg == 'object' && 'glob' in arg) return arg.glob
+    return null
+}
+function getarg(arg: OpArg): number | null {
+    if (typeof arg == 'object' && 'arg' in arg) return arg.arg
+    return null
+}
+function isarg(arg: OpArg): arg is { 'arg': number } {
+    if (typeof arg == 'object' && 'arg' in arg) return true
+    return false
 }
 function str(arg: OpArg): string | null {
     if (typeof arg == 'string') return arg
@@ -170,22 +202,44 @@ function eliminateDeadCode(blocks: SSABlock[]) {
 }
 function bindLoads(blocks: SSABlock[]) {
     // load forwarding
-    for (const match of findall(blocks, op => op.op == Opcode.LdGlob)) {
+    for (const match of findall(blocks, op => op.op == Opcode.LdGlob || !!(op.op == Opcode.Move && glob(op.args[1])))) {
         const r = reg(match.op.args[0])
-        const tgd = str(match.op.args[1])
+        const tgd = match.op.op == Opcode.Move ? glob(match.op.args[1]) : str(match.op.args[1])
         if (!r || !tgd) continue
 
         // if we are the only place someone stores to the target reg...
         if (findall([match.blk], op => usesfor(op, r, 'store')).length != 1) continue
 
-        // and there are no global stores to this global in the current block...
-        if (findall([match.blk], op => op.op == Opcode.StGlob && op.args[1] == tgd).length) continue
-
-        // then, until the end of the block or to a function call, substitute the register to a global ref
-        for (const op of match.blk.ops) {
+        // then, until the end of the block, a function call or a store to target,
+        // substitute the register to a global ref
+        const rstart = match.blk.ops.findIndex(top => top == match.op)
+        for (const op of match.blk.ops.slice(rstart+1)) {
             remap_args('load', op, arg => reg(arg) && reg(arg) == r ? { glob: tgd } : null) 
             if (op.op == Opcode.Call) break // yeah calls break this optimization
+            if (op.op == Opcode.StGlob && str(op.args[0]) == tgd) break
+            if (op.op == Opcode.Move && glob(op.args[1]) == tgd) break
         }
+    }
+    // remove pointless arg to reg moves
+    for (const match of findall(blocks, op => op.op == Opcode.Move)) {
+        const dst = reg(match.op.args[0])
+        const src = getarg(match.op.args[1])
+        const next = getnext(match.blk, match.op)
+        if (!dst || src === null || !next) continue
+        
+        // if we are the only place someone stores to the target reg...
+        // NOTE: this is SSA, not three-address code: all regs are stored to exactly once (i think)
+        if (findall([match.blk], op => usesfor(op, dst, 'store')).length != 1) continue
+        
+        // and this register is used exactly once...
+        // TODO: is that a requirement?
+        if (findall(blocks, op => usesfor(op, dst, 'load')).length == 1) continue
+        
+        // and the next operation uses this new register...
+        if (!usesfor(next, dst, 'load')) continue
+        
+        // then we forward the argument
+        remap_args('load', next, arg => reg(arg) && reg(arg) == dst ? { arg: src } : null)
     }
     // remove unused global loads
     for (const match of findall(blocks, op => op.op == Opcode.LdGlob)) {
@@ -241,7 +295,8 @@ function getParentSet(blocks: SSABlock[]): Map<SSABlock, Set<SSABlock>> {
     return m
 }
 function deepClone<T>(t: T) {
-    return <T>JSON.parse(JSON.stringify(t))
+    // @ts-ignore
+    return structuredClone(t) // note: this is quite slow iirc
 }
 function propagateConstants(blocks: SSABlock[]): boolean {
     let replaced: boolean = false
@@ -446,8 +501,89 @@ function performRawArgumentBinding(blocks: SSABlock[]) {
         }
     }
 }
-export function optimize(u: SSAUnit, blocks: SSABlock[]): SSABlock[] {
+const inlinedSet = new Set<SSABlock>()
+function performInlining(
+        blocks: SSABlock[],
+        getInliningDecision: (fn: string) => boolean,
+        getFunctionBlocks: (fn: string) => SSABlock[],
+    ) {
+    for (const blk of blocks) {
+        if (blk.ops.length == 1 && blk.ops[0].op == Opcode.Call) {
+            // call block
+            // Should we inline?
+            if (getInliningDecision(str(blk.ops[0].args[1]))) {
+                const blkz = deepClone(getFunctionBlocks(str(blk.ops[0].args[1])))
+                const rootblock = blk
+                const callop = blk.ops[0]
+                blk.ops = []
+                
+                // allocate a register for the return value...
+                const retvalue = getreg()
+                
+                // and all the params...
+                const argind = callop.args.slice(2)
+                const argreg = argind.map(() => getreg())
+                argreg.forEach((reg, idx) => {
+                    const val = argind[idx]
+                    blk.ops.push({
+                        pos: callop.pos,
+                        meta: callop.meta,
+                        op: Opcode.Move,
+                        args: [{ reg }, val],
+                    })
+                })
+                
+                // okay we need to process them a bit:
+                // if they have a return, immediatly truncate the block and save the return value
+                for (const blk of blkz) {
+                    const opstream2 = []
+                    for (const op of blk.ops) {
+                        if (op.op == Opcode.Return || op.op == Opcode.ReturnVoid) {
+                            if (op.op == Opcode.Return) {
+                                opstream2.push({
+                                    pos: op.pos,
+                                    meta: op.meta,
+                                    op: Opcode.Move,
+                                    args: [retvalue, op.args[1]],
+                                })
+                            }
+                            blk.cond = JumpCond.Always
+                            blk.condargs = []
+                            blk.targets = rootblock.targets
+                            break
+                        }
+                        remap_args('all', op, arg => isarg(arg) ? { reg: argreg[getarg(arg)] } : null)
+                        opstream2.push(op)
+                    }
+                    blk.ops = opstream2
+                }
+                
+                // glue it all together
+                blk.targets = [blkz[0]]
+                blk.condargs = []
+                blk.cond = JumpCond.Always
+                
+                // snap in all their blocks too
+                blocks.push(...blkz)
+                inlinedSet.add(blk)
+            }
+        } else {
+            if (blk.cond == JumpCond.AlwaysNoMerge) {
+                if (inlinedSet.has(blk.targets[0])) blk.cond = JumpCond.Always
+            }
+        }
+    }
+    blocks = orderBlocks(new Set(blocks), blocks[0])
+    return blocks
+}
+export function optimize(
+        u: SSAUnit,
+        blocks: SSABlock[],
+        getInliningDecision: (fn: string) => boolean,
+        getFunctionBlocks: (fn: string) => SSABlock[],
+    ): SSABlock[] {
     if (options.rawArgRefs) performRawArgumentBinding(blocks)
+    if (options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks)
     if (options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
@@ -459,3 +595,59 @@ export function optimize(u: SSAUnit, blocks: SSABlock[]): SSABlock[] {
     blocks = orderBlocks(new Set(blocks), blocks[0])
     return blocks
 }
+const opcost = {
+    BinOp: 1,
+    ReturnVoid: 1,
+    Function: 0,
+    StInitGlob: 1,
+    TargetOp: 1,
+    StGlob: 1,
+    Move: 1,
+}
+const condcost = {
+    Always: 0.5,
+    AlwaysNoMerge: 0,
+    Abort: 0,
+}
+export function calculateCost(blocks: SSABlock[]) {
+    let cost = 0
+    for (const blk of blocks) {
+        for (const op of blk.ops) {
+            if (op.op == Opcode.Call) {
+                cost += op.args.length
+                continue
+            }
+            if (!(Opcode[op.op] in opcost)) {
+                cost += 3
+                console.log('todo op:', Opcode[op.op])
+            } else {
+                cost += opcost[Opcode[op.op]]
+            }
+        }
+        if (!(JumpCond[blk.cond] in condcost)) {
+            cost += 3
+            console.log('todo cond:', JumpCond[blk.cond])
+        } else {
+            cost += condcost[JumpCond[blk.cond]]
+        }
+    }
+    return cost
+}
+export function calculateCounterCost(blocks: SSABlock[]) {
+    let cost = 3
+    for (const blk of blocks) {
+        for (const op of blk.ops) {
+            if (op.op == Opcode.BindArgument) {
+                cost += 1
+                continue
+            }
+        }
+    }
+    return cost
+}
+export function makeInliningChoice(cost, counterCost) {
+    console.log(`inlining choice: +${cost} vs -${counterCost}`)
+    if (cost <= counterCost) return true
+    return false
+}
+

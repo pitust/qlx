@@ -48,6 +48,7 @@ export enum PrimitiveType {
     Float,
     String,
     Void,
+    Null,
 }
 export { Options } from './options'
 import { Options } from './options'
@@ -86,7 +87,7 @@ interface SSAGenCtx {
     blocks: Set<SSABlock>
     glob: Set<string>
 }
-const getreg = (
+export const getreg = (
     i => () =>
         i++
 )(1)
@@ -117,7 +118,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
             meta,
             pos: node.pos,
             op: Opcode.Call,
-            args: [{ reg }, tgd, ...callargs.map(e => doGenerateExpr(e, ctx))],
+            args: [{ reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))],
         })
         ctx.currentBlock = fwd2
         ctx.blocks.add(fwd)
@@ -331,7 +332,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         const args: ast[] = []
         const argc = +thestr(node.children[2])
         const ret = doGenerateType(theast(node.children[3]))
-        if (argc) args.push(...blk.children.slice(0, argc))
+        if (argc) args.push(...blk.children.slice(0, argc).map(theast))
         ctx.currentBlock.ops.push({
             meta,
             pos: node.pos,
@@ -354,7 +355,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             meta,
             pos: node.pos,
             op: Opcode.BindArgument,
-            args: [nm, idx, doGenerateType(typ)]
+            args: [nm, idx, doGenerateType(theast(typ))]
         })
         return
     }
@@ -431,7 +432,7 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
         const name = thestr(n.children[0])
         const body = theast(n.children[1])
         cu.set(name, generateUnit(false, name, body))
-        if (theast(n.children[2]).name == 'voiddty') {
+        if (theast(n.children[2]).type == 'voiddty') {
             cu.get(name)
         }
     }

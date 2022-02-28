@@ -4,6 +4,8 @@ export interface Options {
     dumpSsa: boolean
     eliminateBranches: boolean
     eliminateDeadCode: boolean
+    forward: boolean
+    inline: boolean
     interleaveSsa: boolean
     max: boolean
     mergeBlocks: boolean

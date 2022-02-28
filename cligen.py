@@ -6,6 +6,7 @@ options = {
     'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough',
     'eliminate-dead-code': '[ssa] eliminate some dead instructions.',
     'forward': '[ssa] forward moves when used once',
+    'inline': '[ssa] [raw-arg-refs] inline small functions',
     'interleave-ssa': '[ssa] interlave code and SSA opcodes',
     'merge-print': '[ssa] merge sequential constant-value prints left by the optimizer',
     'merge-blocks': '[ssa] merge blocks that must come after each other',

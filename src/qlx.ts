@@ -5,6 +5,8 @@ const options = {
     dumpSsa: false,
     eliminateBranches: false,
     eliminateDeadCode: false,
+    forward: false,
+    inline: false,
     interleaveSsa: false,
     max: false,
     mergeBlocks: false,
@@ -35,6 +37,8 @@ for (const arg of process.argv.slice(2)) {
     else if (arg == '-fdump-ssa') options.dumpSsa = true; 
     else if (arg == '-feliminate-branches') options.eliminateBranches = true; 
     else if (arg == '-feliminate-dead-code') options.eliminateDeadCode = true; 
+    else if (arg == '-fforward') options.forward = true; 
+    else if (arg == '-finline') options.inline = true; 
     else if (arg == '-finterleave-ssa') options.interleaveSsa = true; 
     else if (arg == '-fmax') options.max = true; 
     else if (arg == '-fmerge-blocks') options.mergeBlocks = true; 
@@ -63,6 +67,10 @@ function _printHelpMessage() {
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -feliminate-dead-code   - eliminate some dead instructions.");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fforward               - forward moves when used once");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -finline                - inline small functions");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa and -fraw-arg-refs");
     console.log("    -finterleave-ssa        - interlave code and SSA opcodes");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -fmax                   - enable as much stuff as possible");
@@ -88,6 +96,9 @@ if (options.constProp && !options.ssa) _printHelpMessage();
 if (options.dumpSsa && !options.ssa) _printHelpMessage();
 if (options.eliminateBranches && !options.ssa) _printHelpMessage();
 if (options.eliminateDeadCode && !options.ssa) _printHelpMessage();
+if (options.forward && !options.ssa) _printHelpMessage();
+if (options.inline && !options.ssa) _printHelpMessage();
+if (options.inline && !options.rawArgRefs) _printHelpMessage();
 if (options.interleaveSsa && !options.ssa) _printHelpMessage();
 if (options.max && !options.ssa) _printHelpMessage();
 if (options.mergeBlocks && !options.ssa) _printHelpMessage();
