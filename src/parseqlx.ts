@@ -365,6 +365,7 @@ function parseword(): ast {
             return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
         if (code[0].lexeme == 'draw.flush') return code.shift(), parsedrawflush()
         if (code[0].lexeme == 'read') return code.shift(), new ast('memread', [parseword(), parseword()])
+        if (code[0].lexeme == 'write') return code.shift(), new ast('memwrite', [parseword(), parseword(), parseword()])
         if (code[0].lexeme[0] == '@') return new ast('blox', [code.shift()!.lexeme.slice(1)])
         if (code[0].lexeme.startsWith('sense.')) return new ast('sense', [code.shift()!.lexeme.slice(6), parseword()])
         if (code[0].lexeme.startsWith('seton'))
@@ -372,6 +373,7 @@ function parseword(): ast {
         if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0].lexeme)) return $.number(+code.shift()!.lexeme)
         if (code[0].lexeme[0] == ':') return $.number(uid(code.shift()!.lexeme.slice(1)))
         if (code.length > 1 && code[1].lexeme == '=') return parseset()
+        if (code[0].lexeme == '__Target') return code.shift(), new ast('blox', [JSON.stringify(options.target)])
         return $.var(code.shift()!.lexeme)
     })()
     line = oldstate.line

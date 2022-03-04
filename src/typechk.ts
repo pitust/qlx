@@ -33,7 +33,7 @@ function reportTypeDiff(left: Type, right: Type, fmt: string, ...args: any[]) {
     const tnl = typename(left)
     const tnr = typename(right)
     const p = fmt.includes('%a') ? [] : [`${tnl} is not ${tnr}`]
-    console.log('ERROR:', fmt.replace(/{}/g, () => args.shift()).replace('%a', tnl).replace('%b', tnr), ...p)
+    console.log('\x1b[31mERROR\x1b[0m:', fmt.replace(/{}/g, () => args.shift()).replace('%a', tnl).replace('%b', tnr), ...p)
 }
 interface FuncInfo {
     ret: Type
@@ -173,6 +173,15 @@ function continueBlockCheck(
             break
         case Opcode.TargetOp:
             // target ops are assumed to be fine
+            // we need to set up the outputs though
+            if (op.args[0] == 'read') {
+                const out = <{ reg: number }>op.args[1]
+                ltypes.set(out.reg, PrimitiveType.Float)
+            }
+            if (op.args[0] == '_lookupblox') {
+                const out = <{ reg: number }>op.args[1]
+                ltypes.set(out.reg, PrimitiveType.Float)
+            }
             break
         case Opcode.Function:
             const target = <string>op.args[0]
@@ -186,6 +195,16 @@ function continueBlockCheck(
             break
         case Opcode.ReturnVoid:
             break
+        case Opcode.Return:
+            if (!sameType(gFn.get(func).ret, immtype(op.args[0], ltypes))) {
+                checked = false
+                reportTypeDiff(
+                    immtype(op.args[0], ltypes),
+                    gTy.get(<string>op.args[0]),
+                    'cannot return value of type %a as the function {}::{} returns type %b', mod, func
+                )
+            }
+            break
         case Opcode.Call:
             const output = <{ reg: number }>op.args[0]
             const tgd = <string>op.args[1]
@@ -197,18 +216,18 @@ function continueBlockCheck(
             }
             const fndata = gFn.get(tgd)
             if (fndata.args.length != callargs.length) {
-                console.log(`error: ${op.pos}: function ${tgd}/${args.length} does not match the prototype ${tgd}/${fndata}.`)
+                console.log(`error: ${op.pos}: function ${tgd}/${callargs.length} does not match the prototype ${tgd}/${fndata}.`)
                 checked = false
                 return
             }
             for (let i = 0;i < fndata.args.length;i++) {
                 if (!sameType(fndata.args[i], immtype(callargs[i], ltypes))) {
-                    console.log(`error: ${op.pos}: function ${tgd}/${args.length} cannot be called because parameters are incorrect.`)
+                    console.log(`error: ${op.pos}: function ${tgd}/${callargs.length} cannot be called because parameters are incorrect.`)
                     checked = false
                     return
                 }
             }
-            ltypes.set(output.reg, fndata.ret)
+            if (output) ltypes.set(output.reg, fndata.ret)
             break
         default:
             console.log('Bad opcode: ', Opcode[op.op], ...op.args)

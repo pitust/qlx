@@ -147,18 +147,22 @@ function remap_args(
     })
 }
 function reg(arg: OpArg): number | null {
+    if (arg === null) return null
     if (typeof arg == 'object' && 'reg' in arg) return arg.reg
     return null
 }
 function glob(arg: OpArg): string | null {
+    if (arg === null) return null
     if (typeof arg == 'object' && 'glob' in arg) return arg.glob
     return null
 }
 function getarg(arg: OpArg): number | null {
+    if (arg === null) return null
     if (typeof arg == 'object' && 'arg' in arg) return arg.arg
     return null
 }
 function isarg(arg: OpArg): arg is { 'arg': number } {
+    if (arg === null) return false
     if (typeof arg == 'object' && 'arg' in arg) return true
     return false
 }
@@ -188,7 +192,7 @@ function eliminateDeadCode(blocks: SSABlock[]) {
         // if nobody uses this global...
         if (
             findall(blocks, op => {
-                if (op.args.find(e => typeof e == 'object' && 'glob' in e && e.glob == tgd))
+                if (op.args.find(e => e && typeof e == 'object' && 'glob' in e && e.glob == tgd))
                     return true
                 if (op.op == Opcode.LdGlob) return op.args[0] == tgd
                 return false
@@ -492,7 +496,7 @@ function mergePrintOperations(blocks: SSABlock[]) {
     }
 }
 function mergeBlocks(blocks: SSABlock[]) {
-    while (true) {
+    merge: while (true) {
         if (options.eliminateDeadCode) eliminateDeadCode(blocks)
         const parentsets = getParentSet(blocks)
         for (const blk of blocks) {
@@ -501,7 +505,14 @@ function mergeBlocks(blocks: SSABlock[]) {
                 blk.cond = blk.targets[0].cond
                 blk.condargs = deepClone(blk.targets[0].condargs)
                 blk.targets = blk.targets[0].targets
-                continue
+                continue merge
+            }
+        }
+        for (const blk of blocks) {
+            if (blk.cond == JumpCond.Always && blk.ops.length == 0) {
+                // empty blocks get deleted
+                for (const p of parentsets.get(blk)) p.targets = <[]>p.targets.map(e => e == blk ? blk.targets[0] : e)
+                if (parentsets.get(blk).size) continue merge
             }
         }
         break
@@ -626,6 +637,7 @@ export function optimize(
 const opcost = {
     BinOp: 1,
     ReturnVoid: 1,
+    Return: 2,
     Function: 0,
     StInitGlob: 1,
     TargetOp: 1,
@@ -638,6 +650,7 @@ const condcost = {
     AlwaysNoMerge: 0,
     Abort: 0,
     Equal: 1.1,
+    TestBoolean: 1.1,
 }
 export function calculateCost(blocks: SSABlock[]) {
     let cost = 0

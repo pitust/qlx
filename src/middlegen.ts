@@ -90,7 +90,8 @@ export const getreg = (
     i => () =>
         i++
 )(1)
-function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
+function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = false): OpArg {
+    function pushOp(op: SSAOp) { ctx.currentBlock.ops.push(op) }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'number') {
         return +thestr(node.children[0])
@@ -112,24 +113,25 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
         fwd.condargs = []
         fwd.targets = [fwd2]
         
-        ctx.currentBlock = fwd
         fwd.ops.push({
             meta,
             pos: node.pos,
             op: Opcode.Call,
-            args: [{ reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))],
+            args: [
+                isCallStatement ? null : { reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))
+            ],
         })
         ctx.currentBlock = fwd2
         ctx.blocks.add(fwd)
         ctx.blocks.add(fwd2)
-        return reg;
+        return { reg }
     }
     if (node.type == 'binop') {
         const opc = thestr(node.children[0])
         const lhs = theast(node.children[1])
         const rhs = theast(node.children[2])
         const reg = getreg()
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.BinOp,
@@ -140,7 +142,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
     if (node.type == 'blox') {
         const vname = thestr(node.children[0])
         const reg = getreg()
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.TargetOp,
@@ -148,10 +150,35 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx): OpArg {
         })
         return { reg }
     }
+    if (node.type == 'memread') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const reg = getreg()
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['read', { reg }, cell, addr],
+        })
+        return { reg }
+    }
+    if (node.type == 'memwrite') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const value = doGenerateExpr(theast(node.children[2]), ctx)
+        const reg = getreg()
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['write', { reg }, cell, addr, value],
+        })
+        return { reg }
+    }
     if (node.type == 'varnode') {
         const vname = thestr(node.children[0])
         const reg = getreg()
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.glob.has(vname) ? Opcode.LdGlob : Opcode.LdLoc,
@@ -177,6 +204,7 @@ function ssablk(): SSABlock {
 }
 const functionGenerationQueue = new Set<ast>()
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
+    function pushOp(op: SSAOp) { ctx.currentBlock.ops.push(op) }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'programnode') {
         for (const c of node.children) {
@@ -260,13 +288,13 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         }
     }
     if (node.type == 'typedlet') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.TypeGlob : Opcode.TypeLoc,
             args: [thestr(node.children[1]), doGenerateType(theast(node.children[0]))],
         })
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
@@ -276,7 +304,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         return
     }
     if (node.type == 'let') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StInitGlob : Opcode.StInitLoc,
@@ -286,7 +314,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         return
     }
     if (node.type == 'set') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc, // todo: store to globals from within functions
@@ -298,7 +326,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     if (node.type == 'printnode') {
         if (theast(node.children[0]).type == 'blox') {
             // direct emission
-            ctx.currentBlock.ops.push({
+            pushOp({
                 meta,
                 pos: node.pos,
                 op: Opcode.TargetOp,
@@ -307,7 +335,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             return
         } else {
             // value emission
-            ctx.currentBlock.ops.push({
+            pushOp({
                 meta,
                 pos: node.pos,
                 op: Opcode.TargetOp,
@@ -317,7 +345,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         }
     }
     if (node.type == 'printflushnode') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.TargetOp,
@@ -332,7 +360,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         const argc = +thestr(node.children[2])
         const ret = doGenerateType(theast(node.children[3]))
         if (argc) args.push(...blk.children.slice(0, argc).map(theast))
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.Function,
@@ -341,8 +369,8 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         functionGenerationQueue.add(node)
         return
     }
-    if (node.type == 'callnode') {
-        doGenerateExpr(node, ctx)
+    if (node.type == 'callnode' || node.type == 'memwrite') {
+        doGenerateExpr(node, ctx, node.type == 'callnode')
         return
     }
     if (node.type == 'bindarg') {
@@ -350,11 +378,20 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         const idx = +thestr(idx_)
         const [nm_, typ] = theast(c0).children
         const nm = thestr(nm_)
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.BindArgument,
             args: [nm, idx, doGenerateType(theast(typ))]
+        })
+        return
+    }
+    if (node.type == 'returnnode') {
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.Return,
+            args: [doGenerateExpr(theast(node.children[0]), ctx)],
         })
         return
     }

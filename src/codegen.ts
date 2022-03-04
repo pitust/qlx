@@ -193,6 +193,9 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 }
                 code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}2${nostyle}`)
                 code.push(`    ${fmt.assign}jump ${selector}always ${label}fn.${mod}::${op.args[1]}${nostyle}`) 
+                if (op.args[0]) {
+                    code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`)
+                }
                 functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${op.args[1]}${nostyle}`)
@@ -210,9 +213,14 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                     'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
                     _lookupblox: () => `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                    read: () => `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])}`,
+                    write: () => `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                 }
                 if (!(<string>op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[<keyof typeof ops>op.args[0]]()}`)
+            } else if (op.op == Opcode.Return) {
+                code.push(`    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`)
+                code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.ReturnVoid) {
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.End) {
@@ -344,7 +352,7 @@ export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: 
     const refcounts = new Map<string, number>()
     for (const [nm] of units[1]) refcounts.set(nm, 0)
     
-    for (const [nm, u] of units[1]) {
+    for (const [, u] of units[1]) {
         for (const blk of u.blocks) {
             for (const op of blk.ops) {
                 const tgd = `${op.args[1]}`
@@ -365,6 +373,9 @@ export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: 
     generateUnit('_main', '_init', units[0], code => {
         buf.push(code)
     })
+    if (functionCallReferenceSet.size && options.noEnd) {
+        buf.push(process.env.QLXCOLOR == 'on' ? `    \x1b[34mend\x1b[0m` : '    end')
+    }
     for (const u of functionCallReferenceSet) buf.push(...buffers.get(u))
     writeCode(buf.join('\n'))
 }
