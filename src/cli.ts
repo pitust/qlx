@@ -1,9 +1,10 @@
 import { checkForMixin, loadPlugin } from './plugins'
 import { checkAllTypes } from './typechk'
-import { generateSSA, options, Options, dumpSSA } from './middlegen'
+import { generateSSA, options, dumpSSA } from './middlegen'
 import { generateCode } from './codegen'
 import { readFileSync, writeFileSync } from 'fs'
 import { compileCode } from './qlxemit'
+import { Options } from './options'
 
 export function onCLIParseComplete(o: Options, input: string, output: string | null) {
     Object.assign(options, o)

@@ -193,19 +193,6 @@ function doGenerateExpr(node, ctx, isCallStatement = false) {
         })
         return { reg }
     }
-    if (node.type == 'memwrite') {
-        const cell = doGenerateExpr(theast(node.children[0]), ctx)
-        const addr = doGenerateExpr(theast(node.children[1]), ctx)
-        const value = doGenerateExpr(theast(node.children[2]), ctx)
-        const reg = exports.getreg.call(void 0, )
-        pushOp({
-            meta,
-            pos: node.pos,
-            op: Opcode.TargetOp,
-            args: ['write', { reg }, cell, addr, value],
-        })
-        return { reg }
-    }
     if (node.type == 'varnode') {
         const vname = thestr(node.children[0])
         const reg = exports.getreg.call(void 0, )
@@ -260,6 +247,30 @@ function doGenerateSSA(node, ctx) {
     }
     if (node.type == 'blocknode') {
         for (const c of node.children) doGenerateSSA(theast(c), ctx)
+        return
+    }
+    if (node.type == 'dotset') {
+        const val = thestr(node.children[0])
+        const reg = exports.getreg.call(void 0, )
+        const reg2 = exports.getreg.call(void 0, )
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.glob.has(val) ? Opcode.LdGlob : Opcode.LdLoc,
+            args: [{ reg }, val],
+        })
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.SetProp,
+            args: [{ reg: reg2 }, { reg }, thestr(node.children[1]), doGenerateExpr(node.children[2], ctx)],
+        })
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.glob.has(val) ? Opcode.StGlob : Opcode.StLoc,
+            args: [val, { reg: reg2 }],
+        })
         return
     }
     if (node.type == 'while') {
@@ -415,8 +426,20 @@ function doGenerateSSA(node, ctx) {
         functionGenerationQueue.add(node)
         return
     }
-    if (node.type == 'callnode' || node.type == 'memwrite') {
+    if (node.type == 'callnode') {
         doGenerateExpr(node, ctx, node.type == 'callnode')
+        return
+    }
+    if (node.type == 'memwrite') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const value = doGenerateExpr(theast(node.children[2]), ctx)
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['write', value, cell, addr],
+        })
         return
     }
     if (node.type == 'bindarg') {
@@ -458,10 +481,10 @@ function doGenerateSSA(node, ctx) {
             
             const [test, inner] = switchcase.children
             ctx.currentBlock.cond = JumpCond.Equal
-            ctx.currentBlock.condargs = [cval, doGenerateExpr(test, ctx)]
+            ctx.currentBlock.condargs = [cval, doGenerateExpr(theast(test), ctx)]
             ctx.currentBlock.targets = [switchblk, morecases]
             ctx.currentBlock = switchblk
-            doGenerateSSA(inner, ctx)
+            doGenerateSSA(theast(inner), ctx)
             ctx.currentBlock.cond = JumpCond.Always
             ctx.currentBlock.condargs = []
             ctx.currentBlock.targets = [finished]

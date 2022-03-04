@@ -3,6 +3,7 @@
  function performStructureExpansion(blocks, types) {
     const mappedRegisters = new Map()
     for (const blk of blocks) {
+        let argumentIndex = 0
         const transformed = []
         for (const op of blk.ops) {
             transformed.push(op)
@@ -20,8 +21,7 @@
                     rm.set(nm, { reg: _middlegen.getreg.call(void 0, ) })
                 }
                 mappedRegisters.set(target, rm)
-            }
-            if (op.op == _middlegen.Opcode.LdGlob) {
+            } else if (op.op == _middlegen.Opcode.LdGlob || op.op == _middlegen.Opcode.LdLoc) {
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
@@ -32,15 +32,14 @@
                     const mr = _middlegen.getreg.call(void 0, )
                     rm.set(nm, { reg: mr })
                     transformed.push({
-                        op: _middlegen.Opcode.LdGlob,
+                        op: op.op,
                         args: [{ reg: mr }, src + nm],
                         pos: op.pos,
                         meta: op.meta,
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            }
-            if (op.op == _middlegen.Opcode.StGlob) {
+            } else if (op.op == _middlegen.Opcode.StGlob) {
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
@@ -54,8 +53,7 @@
                         meta: op.meta,
                     })
                 }
-            }
-            if (op.op == _middlegen.Opcode.SetProp) {
+            } else if (op.op == _middlegen.Opcode.SetProp) {
                 // setprop is just renaming shit
                 transformed.pop()
                 const dst = (op.args[0]).reg
@@ -65,8 +63,7 @@
                 const intrmd = new Map(mappedRegisters.get(src))
                 intrmd.set(prop, val)
                 mappedRegisters.set(dst, intrmd)
-            }
-            if (op.op == _middlegen.Opcode.GetProp) {
+            } else if (op.op == _middlegen.Opcode.GetProp) {
                 // getprop is literally a move
                 transformed.pop()
                 const dst = op.args[0]
@@ -78,6 +75,41 @@
                     op: _middlegen.Opcode.Move,
                     args: [dst, mappedRegisters.get(src).get(prop)]
                 })
+            } else if (op.op == _middlegen.Opcode.BindArgument) {
+                transformed.pop()
+                const name = `${op.args[0]}`
+                const type = (op.args[2]).type
+                
+                if (typeof type == 'object') {
+                    for (const [nm, ty] of type.members) {
+                        transformed.push({
+                            pos: op.pos,
+                            meta: op.meta,
+                            op: _middlegen.Opcode.BindArgument,
+                            args: [name + ':' + nm, argumentIndex++, { type: ty }]
+                        })
+                    }
+                } else {
+                    transformed.push({
+                        pos: op.pos,
+                        meta: op.meta,
+                        op: _middlegen.Opcode.BindArgument,
+                        args: [name, argumentIndex++, { type }]
+                    })
+                }
+            } else if (op.op == _middlegen.Opcode.Call) {
+                const args = op.args.slice(2)
+                const newargs = op.args.slice(0, 2)
+                for (const arg of args) {
+                    if (typeof arg == 'object' && 'reg' in arg && types.has(arg.reg)) {
+                        for (const [,mr] of mappedRegisters.get(arg.reg)) {
+                            newargs.push(mr)
+                        }
+                    } else {
+                        newargs.push(arg)
+                    }
+                }
+                op.args = newargs
             }
         }
         blk.ops = transformed

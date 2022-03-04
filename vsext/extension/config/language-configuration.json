@@ -8,8 +8,7 @@
     "brackets": [
         ["{", "}"],
         ["[", "]"],
-        ["(", ")"],
-        ["do", "\nend"]
+        ["(", ")"]
     ],
     // symbols that are auto closed when typing
     "autoClosingPairs": [

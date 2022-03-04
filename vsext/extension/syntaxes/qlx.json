@@ -25,7 +25,7 @@
                 },
                 {
                     "name": "entity.name.function",
-                    "match": "(?<![a-zA-Z0-9_])(print(f(lush)?)?|getlink|read|draw\\.line|draw\\.clear|draw\\.flush|sense\\.[a-z]+)(?![a-zA-Z0-9_])"
+                    "match": "(?<![a-zA-Z0-9_])(print(f(lush)?)?|getlink|read|write|draw\\.line|draw\\.clear|draw\\.flush|sense\\.[a-z]+)(?![a-zA-Z0-9_])"
                 },
                 {
                     "name": "constant.language.boolean.true.qlx",
@@ -74,10 +74,6 @@
                 {
                     "name": "keyword.operand.qlx",
                     "match": "\\+|\\-|\\*|\\/|=="
-                },
-                {
-                    "name": "punctuation.section.block.begin.bracket.curly.qlx",
-                    "match": "do|end"
                 }
             ]
         }

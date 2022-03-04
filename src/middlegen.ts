@@ -193,19 +193,6 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
         })
         return { reg }
     }
-    if (node.type == 'memwrite') {
-        const cell = doGenerateExpr(theast(node.children[0]), ctx)
-        const addr = doGenerateExpr(theast(node.children[1]), ctx)
-        const value = doGenerateExpr(theast(node.children[2]), ctx)
-        const reg = getreg()
-        pushOp({
-            meta,
-            pos: node.pos,
-            op: Opcode.TargetOp,
-            args: ['write', { reg }, cell, addr, value],
-        })
-        return { reg }
-    }
     if (node.type == 'varnode') {
         const vname = thestr(node.children[0])
         const reg = getreg()
@@ -439,8 +426,20 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         functionGenerationQueue.add(node)
         return
     }
-    if (node.type == 'callnode' || node.type == 'memwrite') {
+    if (node.type == 'callnode') {
         doGenerateExpr(node, ctx, node.type == 'callnode')
+        return
+    }
+    if (node.type == 'memwrite') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const value = doGenerateExpr(theast(node.children[2]), ctx)
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['write', value, cell, addr],
+        })
         return
     }
     if (node.type == 'bindarg') {
@@ -482,10 +481,10 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             
             const [test, inner] = switchcase.children
             ctx.currentBlock.cond = JumpCond.Equal
-            ctx.currentBlock.condargs = [cval, doGenerateExpr(test, ctx)]
+            ctx.currentBlock.condargs = [cval, doGenerateExpr(theast(test), ctx)]
             ctx.currentBlock.targets = [switchblk, morecases]
             ctx.currentBlock = switchblk
-            doGenerateSSA(inner, ctx)
+            doGenerateSSA(theast(inner), ctx)
             ctx.currentBlock.cond = JumpCond.Always
             ctx.currentBlock.condargs = []
             ctx.currentBlock.targets = [finished]

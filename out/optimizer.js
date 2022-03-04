@@ -192,6 +192,8 @@ function eliminateDeadCode(blocks) {
         // if nobody uses this global...
         if (
             findall(blocks, op => {
+                // fix a misoptimization in some structure cases
+                if (op.op == _middlegen.Opcode.StGlob && op.args[0] == tgd) return false
                 if (op.args.find(e => e && typeof e == 'object' && 'glob' in e && e.glob == tgd))
                     return true
                 if (op.op == _middlegen.Opcode.LdGlob) return op.args[0] == tgd
@@ -571,6 +573,7 @@ function performInlining(
                         args: [{ reg }, val],
                     })
                 })
+                let earlyops = blk.ops
                 
                 // okay we need to process them a bit:
                 // if they have a return, immediatly truncate the block and save the return value
@@ -590,6 +593,14 @@ function performInlining(
                             blk.condargs = []
                             blk.targets = rootblock.targets
                             break
+                        }
+                        if (op.op == _middlegen.Opcode.BindArgument) {
+                            earlyops.push({
+                                pos: op.pos,
+                                meta: op.meta,
+                                op: _middlegen.Opcode.StLoc,
+                                args: []
+                            })
                         }
                         remap_args('all', op, arg => isarg(arg) ? { reg: argreg[getarg(arg)] } : null)
                         opstream2.push(op)

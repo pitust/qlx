@@ -5,6 +5,7 @@ var _codegen = require('./codegen');
 var _fs = require('fs');
 var _qlxemit = require('./qlxemit');
 
+
  function onCLIParseComplete(o, input, output) {
     Object.assign(_middlegen.options, o)
     if (_middlegen.options.max) {
@@ -26,6 +27,7 @@ var _qlxemit = require('./qlxemit');
         const u = _middlegen.generateSSA.call(void 0, input)
         if (_middlegen.options.dump_freshSsa) {
             _middlegen.dumpSSA.call(void 0, u[0])
+            for (const [,p] of u[1]) _middlegen.dumpSSA.call(void 0, p)
         }
         if (!_typechk.checkAllTypes.call(void 0, u)) {
             console.log('fatal error: type check failed; exiting')

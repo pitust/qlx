@@ -185,6 +185,8 @@ function generateUnit(mod, fn, unit, writeCode) {
             if (op.op == _middlegen.Opcode.TypeGlob || op.op == _middlegen.Opcode.TypeLoc) {
             } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) {
                 code.push(`    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
+            } else if (op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc) {
+                code.push(`    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.Move) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.BindArgument) {
@@ -193,8 +195,8 @@ function generateUnit(mod, fn, unit, writeCode) {
                 for (let i = 0;i < op.args.length - 2;i++) {
                     code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
                 }
-                code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}2${nostyle}`)
-                code.push(`    ${fmt.assign}jump ${selector}always ${label}fn.${mod}::${op.args[1]}${nostyle}`) 
+                code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`)
+                code.push(`    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`) 
                 if (op.args[0]) {
                     code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`)
                 }
@@ -215,7 +217,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                     'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
                     _lookupblox: () => `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
-                    read: () => `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])}`,
+                    read: () => `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                     write: () => `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                 }
                 if (!(op.args[0] in ops)) console.log('op:', op.args[0])

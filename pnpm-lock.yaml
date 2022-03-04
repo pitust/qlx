@@ -2,12 +2,14 @@ lockfileVersion: 5.3
 
 specifiers:
   '@types/node': ^16.7.6
+  smart-buffer: ^4.2.0
   sucrase: ^3.20.3
   ts-node: ^10.4.0
   typescript: ^4.5.4
 
 dependencies:
   '@types/node': 16.7.6
+  smart-buffer: 4.2.0
   sucrase: 3.20.3
 
 devDependencies:
@@ -163,6 +165,11 @@ packages:
   /pirates/4.0.4:
     resolution: {integrity: sha512-ZIrVPH+A52Dw84R0L3/VS9Op04PuQ2SEoJL6bkshmiTic/HldyW9Tf7oH5mhJZBK7NmDx27vSMrYEXPXclpDKw==}
     engines: {node: '>= 6'}
+    dev: false
+
+  /smart-buffer/4.2.0:
+    resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
+    engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
     dev: false
 
   /sucrase/3.20.3:
