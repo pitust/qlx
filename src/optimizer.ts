@@ -305,6 +305,18 @@ function propagateConstants(blocks: SSABlock[]): boolean {
     for (const blk of blocks) {
         const constantValues = new Map<number, number>()
         const constantGlobals = new Map<string, number>()
+        function isKnown(val: OpArg): boolean {
+            if (reg(val)) return constantValues.has(reg(val))
+            if (typeof val == 'object' && 'glob' in val) return constantGlobals.has(arg.glob)
+            if (typeof val == 'number') return true
+            return false
+        }
+        function getValue(val: OpArg): number {
+            if (reg(val)) return constantValues.get(reg(val))!
+            if (typeof val == 'object' && 'glob' in val) return constantGlobals.get(arg.glob)!
+            if (typeof val == 'number') return val
+            throw new Error('ice: bad getValue')
+        }
         try_to_block_prop: do {
             let shouldIntersect = false
             for (const s of parentsets.get(blk)) {
@@ -362,8 +374,25 @@ function propagateConstants(blocks: SSABlock[]): boolean {
                         args: [{ reg: out }, constantValues.get(out)],
                     })
                 }
+                if (op.args[1] == 'equal') {
+                    if (left == right) constantValues.set(out, 1)
+                    else constantValues.set(out, 0)
+                    replace({
+                        op: Opcode.Move,
+                        pos: op.pos,
+                        args: [{ reg: out }, constantValues.get(out)],
+                    })
+                }
                 if (op.args[1] == 'add') {
                     constantValues.set(out, left + right)
+                    replace({
+                        op: Opcode.Move,
+                        pos: op.pos,
+                        args: [{ reg: out }, constantValues.get(out)],
+                    })
+                }
+                if (op.args[1] == 'sub') {
+                    constantValues.set(out, left - right)
                     replace({
                         op: Opcode.Move,
                         pos: op.pos,
@@ -385,16 +414,8 @@ function propagateConstants(blocks: SSABlock[]): boolean {
                 })
             } else {
                 op.args = op.args.map((arg, idx) => {
-                    if (typeof arg != 'object') return arg
-                    if (!('glob' in arg)) return arg
                     if (!idx) return arg
-                    if (constantGlobals.has(arg.glob)) return constantGlobals.get(arg.glob)
-                    return arg
-                }).map((arg, idx) => {
-                    if (typeof arg != 'object') return arg
-                    if (!('reg' in arg)) return arg
-                    if (!idx) return arg
-                    if (constantValues.has(arg.reg)) return constantValues.get(arg.reg)
+                    if (isKnown(arg)) return getValue(arg)
                     return arg
                 })
             }
@@ -402,11 +423,19 @@ function propagateConstants(blocks: SSABlock[]): boolean {
         blk.ops = replacementStream
         if (
             blk.cond == JumpCond.TestBoolean &&
-            reg(blk.condargs[0]) &&
-            constantValues.has(reg(blk.condargs[0]))
+            isKnown(blk.condargs[0])
         ) {
             blk.cond = JumpCond.Always
-            blk.targets = [blk.targets[+(constantValues.get(reg(blk.condargs[0])) == 0)]]
+            blk.targets = [blk.targets[+(getValue(blk.condargs[0]) == 0)]]
+            blk.condargs = []
+        }
+        if (
+            blk.cond == JumpCond.Equal &&
+            isKnown(blk.condargs[0]) &&
+            isKnown(blk.condargs[1])
+        ) {
+            blk.cond = JumpCond.Always
+            blk.targets = [blk.targets[+(getValue(blk.condargs[0]) != getValue(blk.condargs[1]))]]
             blk.condargs = []
         }
         if (
@@ -481,7 +510,6 @@ function mergeBlocks(blocks: SSABlock[]) {
 function performRawArgumentBinding(blocks: SSABlock[]) {
     const name2id = new Map<string, OpArg>()
     for (const blk of blocks) {
-        let wasprinting = false
         for (const op of blk.ops) {
             if (op.op == Opcode.BindArgument) {
                 const [name, id] = op.args
@@ -577,7 +605,7 @@ function performInlining(
     return blocks
 }
 export function optimize(
-        u: SSAUnit,
+        _u: SSAUnit,
         blocks: SSABlock[],
         getInliningDecision: (fn: string) => boolean,
         getFunctionBlocks: (fn: string) => SSABlock[],
@@ -603,11 +631,13 @@ const opcost = {
     TargetOp: 1,
     StGlob: 1,
     Move: 1,
+    End: 1,
 }
 const condcost = {
     Always: 0.5,
     AlwaysNoMerge: 0,
     Abort: 0,
+    Equal: 1.1,
 }
 export function calculateCost(blocks: SSABlock[]) {
     let cost = 0
@@ -645,7 +675,7 @@ export function calculateCounterCost(blocks: SSABlock[]) {
     }
     return cost
 }
-export function makeInliningChoice(cost, counterCost) {
+export function makeInliningChoice(cost: number, counterCost: number) {
     console.log(`inlining choice: +${cost} vs -${counterCost}`)
     if (cost <= counterCost) return true
     return false

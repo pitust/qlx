@@ -1,7 +1,8 @@
 import assert from 'assert'
 import { existsSync, readFileSync } from 'fs'
 import { checkForMixin } from './plugins'
-
+import { options } from './middlegen' // TODO: this is an import cycle
+ 
 const packages = new Set<string>()
 
 class Lexeme {
@@ -25,7 +26,7 @@ export function lex(s: string): Lexeme[] {
             column = 1
             continue
         }
-        if (s[0] == ':') {
+        if (s[0] == ':' && /\s/.test(s[1])) {
             lexemes.push(new Lexeme(line, column, ':', stp[line-1], [column - 1, 1]))
             column += 1
             s = s.slice(1)
@@ -312,6 +313,7 @@ const genuid = (
 )(/* nice big offset */ 0x414243)
 
 function uid(s: string) {
+    if (s == '__Target') s = options.target
     if (!map.has(s)) {
         map.set(s, genuid())
         checkForMixin<[string, number], void>('@qlx/parse:create-atom', [s, map.get(s)!])

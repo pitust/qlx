@@ -50,7 +50,6 @@ export enum PrimitiveType {
     Void,
     Null,
 }
-export { Options } from './options'
 import { Options } from './options'
 export const options: Options = <Options>{}
 export type Type = PrimitiveType
@@ -359,7 +358,39 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         })
         return
     }
-
+    if (node.type == 'switch') {
+        const [cond_, body_, dfl_] = node.children
+        const cond = theast(cond_)
+        const body = theast(body_).children.map(e=>theast(e))
+        const dfl = theast(dfl_)
+        
+        const cval = doGenerateExpr(cond, ctx)
+        const finished = ssablk()
+        ctx.blocks.add(finished)
+        for (const switchcase of body) {
+            const switchblk = ssablk()
+            const morecases = ssablk()
+            ctx.blocks.add(switchblk)
+            ctx.blocks.add(morecases)
+            
+            const [test, inner] = switchcase.children
+            ctx.currentBlock.cond = JumpCond.Equal
+            ctx.currentBlock.condargs = [cval, doGenerateExpr(test, ctx)]
+            ctx.currentBlock.targets = [switchblk, morecases]
+            ctx.currentBlock = switchblk
+            doGenerateSSA(inner, ctx)
+            ctx.currentBlock.cond = JumpCond.Always
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [finished]
+            ctx.currentBlock = morecases
+        }
+        doGenerateSSA(dfl, ctx)
+        ctx.currentBlock.cond = JumpCond.Always
+        ctx.currentBlock.condargs = []
+        ctx.currentBlock.targets = [finished]
+        ctx.currentBlock = finished
+        return
+    }
 
     console.log(node)
     assert(false, 'todo: handle ' + node.type)

@@ -1,5 +1,6 @@
 import { onCLIParseComplete } from './cli';
 const options = {
+    target: 'default',
     bindLoads: false,
     constProp: false,
     dumpSsa: false,
@@ -23,15 +24,20 @@ let output = null;
 if (process.argv.includes('-h') || process.argv.includes('--help')) {
     _printHelpMessage();
 }
-for (const arg of process.argv.slice(2)) {
-    if (arg[0] != '-') {
+let isNextTarget = false
+for (let arg of process.argv.slice(2)) {
+    if (arg[0] != '-' && !isNextTarget) {
         if (!input) {
             input = arg;
+            continue;
         } else {
             console.log('error: input redefined:', arg);
             process.exit(1);
         }
     }
+    if (arg == '--target') { isNextTarget = true; continue; }
+    if (arg.startsWith('--target=')) { arg = arg.slice(9); isNextTarget = true; }
+    if (isNextTarget) { isNextTarget = false; options.target = arg; continue; }
     else if (arg == '-fbind-loads') options.bindLoads = true; 
     else if (arg == '-fconst-prop') options.constProp = true; 
     else if (arg == '-fdump-ssa') options.dumpSsa = true; 

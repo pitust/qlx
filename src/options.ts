@@ -1,4 +1,5 @@
 export interface Options {
+    target: string
     bindLoads: boolean
     constProp: boolean
     dumpSsa: boolean

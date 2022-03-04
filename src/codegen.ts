@@ -129,7 +129,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     function immref(arg: OpArg): string {
         if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
         if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
-        if ('reg' in arg) return `${ri}${mod}::${fn}::r${arg.reg}${nostyle}`
+        if ('reg' in arg) return `${ri}r${arg.reg}${nostyle}`
         if ('arg' in arg) return `${ri}arg-${arg.arg}.${mod}::${fn}${nostyle}`
         if ('glob' in arg) return `${glob}${mod}::_init::${arg.glob}${nostyle}`
         if ('blox' in arg) return glob + arg.blox + nostyle
@@ -268,15 +268,22 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# consequent`)
-            } else {
-                code.push(`    ${comment}# consequent (eliminated)`)
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# alternate`)
-            } else {
-                code.push(`    ${comment}# alternate (eliminated)`)
+            }
+        } else if (blk.cond == JumpCond.Equal) {
+            if (!hasCons) {
+                const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
+                usedlabels.add(target)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# consequent`)
+            }
+            if (!hasAlt) {
+                const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
+                usedlabels.add(target)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# alternate`)
             }
         } else if (blk.cond == JumpCond.Abort) {
             if (!options.noSafeAbort) code.push(`    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`)
@@ -293,7 +300,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
         code[i] = lol.padEnd(programLongestOpcode + lolcount * 2) + comment + '# ' + tbl.slice(-1)[0] + nostyle
     }
     if (options.stripComments) {
-        code = code.map(line => line.split('#')[0]).filter(e => e.trim())
+        code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
     }
     if (options.eliminateBranches) {
         code = code.filter(e => !(e.endsWith(':') && !usedlabels.has(e.slice(4, -3))))
@@ -329,7 +336,9 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     }))
 }
 export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: (s: string) => void) {
-    let buf = [process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx']
+    let buf = [
+        process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx'
+    ]
     
     // const argc = units[0].startBlock.ops.filter(e => e.op == Opcode.BindArgument).length
     const refcounts = new Map<string, number>()

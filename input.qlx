@@ -1,9 +1,7 @@
-fn printi { arg: float } -> void
-  printf "i: {}" arg
-  printflush @message1
+switch :__Target
+  case :default print "default"
+  case :foo print "foo"
+  case :bar print "bar"
+  case :madness print "madness"
 end
-let i = 3
-while true do
-  printi/1 i
-  i = + i 1
-end
+

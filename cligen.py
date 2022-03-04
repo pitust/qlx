@@ -38,23 +38,34 @@ longest_name = 0
 for nam in options.keys():
     longest_name = len(nam) + 2 if len(nam) + 2 > longest_name else longest_name
 
-tsiface = ['export interface Options {']
-struct = ['const options = {']
+tsiface = [
+    'export interface Options {',
+    '    target: string'
+]
+struct = [
+    'const options = {',
+    '    target: \'default\','
+]
 parsecode = [
     'let input = null;',
     'let output = null;',
     'if (process.argv.includes(\'-h\') || process.argv.includes(\'--help\')) {',
     '    _printHelpMessage();',
     '}',
-    'for (const arg of process.argv.slice(2)) {',
-    '    if (arg[0] != \'-\') {',
+    'let isNextTarget = false',
+    'for (let arg of process.argv.slice(2)) {',
+    '    if (arg[0] != \'-\' && !isNextTarget) {',
     '        if (!input) {',
     '            input = arg;',
+    '            continue;',
     '        } else {',
     '            console.log(\'error: input redefined:\', arg);',
     '            process.exit(1);',
     '        }',
     '    }',
+    '    if (arg == \'--target\') { isNextTarget = true; continue; }',
+    '    if (arg.startsWith(\'--target=\')) { arg = arg.slice(9); isNextTarget = true; }',
+    '    if (isNextTarget) { isNextTarget = false; options.target = arg; continue; }'
 ]
 checkcode = []
 helpmsg = []
