@@ -35,11 +35,11 @@ const fmt = {
 const selector = '\x00f'
 
 const hlcolors = {
-    kw: '\x00r\x005',
-    imm: '\x00r\x003',
-    ident: '\x00r\x004',
+    kw: '\x00r\x003',
+    imm: '\x00r\x002',
+    ident: '\x00r\x005',
     operator: '\x00r\x001',
-    number: '\x00r\x002',
+    number: '\x00r\x004',
 }
 
 const kw = [
@@ -63,16 +63,20 @@ const kw = [
     'let',
     'read',
     'seton',
+    'get{',
+    'set{',
+    '}'
 ]
-const kwregex = new RegExp('\\b(' + kw.join('|') + ')\\b', 'g')
+const kwregex = new RegExp('(?<=\\s|^)(' + kw.join('|') + ')(?=\\s|$)', 'g')
 function highlight(k: string, hotrange = [0, 0]) {
     k = k
         .replaceAll(/"[^"]*"/g, re => '%s%' + re + '%S%')
-        .replaceAll(/(?<=\s|^)[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
-        .replaceAll(/[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)@[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%@%' + id + '%r%')
         .replaceAll(kwregex, kw => '%k%' + kw + '%r%')
+        .replaceAll(/(?<=\s|^)\.?[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%i%' + id + '%r%')
+        .replaceAll(/(?<=\s|^)[a-zA-Z_][a-zA-Z_0-9]*\/[0-9]+(?=\s|$)/g, id => '%i%' + id + '%r%')
+        .replaceAll(/(?<=\s|^)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
+        .replaceAll(/(?<!%.%)[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
+        .replaceAll(/(?<=\s|^)@[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%@%' + id + '%r%')
         .replaceAll('%n%', hlcolors.number)
         .replaceAll('%i%', hlcolors.ident)
         .replaceAll('%@%', hlcolors.imm)

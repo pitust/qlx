@@ -12,4 +12,4 @@ set{ f .foo } = 69
 set{ f .bar } = 420
 
 lel/1 f
-
+printflush @message1

@@ -138,7 +138,6 @@ function continueBlockCheck(
                 }
                 break
             case Opcode.BindArgument:
-                console.log(mod, func)
                 if (!vTy.has(<string>op.args[0])) {
                     vTy.set(<string>op.args[0], (<{ type: Type }>op.args[2]).type)
                 }
