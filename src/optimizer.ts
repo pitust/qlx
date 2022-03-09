@@ -549,16 +549,17 @@ const inlinedSet = new Set<SSABlock>()
 function performInlining(
     blocks: SSABlock[],
     getInliningDecision: (fn: string) => boolean,
-    getFunctionBlocks: (fn: string) => SSABlock[]
+    getFunctionBlocks: (fn: string) => SSABlock[],
+    isRoot: boolean
 ) {
     for (const blk of blocks) {
         if (blk.ops.length == 1 && blk.ops[0].op == Opcode.Call) {
             // call block
             // Should we inline?
-            if (getInliningDecision(str(blk.ops[0].args[1]))) {
-                const blkz = deepClone(getFunctionBlocks(str(blk.ops[0].args[1])))
+            const callop = blk.ops[0]
+            if (getInliningDecision(str(callop.args[1]))) {
+                const blkz = deepClone(getFunctionBlocks(str(callop.args[1])))
                 const rootblock = blk
-                const callop = blk.ops[0]
                 blk.ops = []
 
                 // allocate a register for the return value...
@@ -606,10 +607,12 @@ function performInlining(
                             })
                         }
                         if (op.op == Opcode.LdLoc) {
-                            op.args[1] = `${str(blk.ops[0].args[1])}::${op.args[1]}`
+                            op.args[1] = `${str(callop.args[1])}::${op.args[1]}`
+                            if (isRoot) op.op = Opcode.LdGlob
                         }
                         if (op.op == Opcode.StLoc) {
-                            op.args[0] = `${str(blk.ops[0].args[1])}::${op.args[0]}`
+                            op.args[0] = `${str(callop.args[1])}::${op.args[0]}`
+                            if (isRoot) op.op = Opcode.StGlob
                         }
                         remap_args('all', op, arg =>
                             isarg(arg) ? { reg: argreg[getarg(arg)] } : null
@@ -641,10 +644,11 @@ export function optimize(
     _u: SSAUnit,
     blocks: SSABlock[],
     getInliningDecision: (fn: string) => boolean,
-    getFunctionBlocks: (fn: string) => SSABlock[]
+    getFunctionBlocks: (fn: string) => SSABlock[],
+    isRoot: boolean
 ): SSABlock[] {
     if (options.rawArgRefs) performRawArgumentBinding(blocks)
-    if (options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks)
+    if (options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks, isRoot)
     if (options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
@@ -664,6 +668,8 @@ const opcost = {
     StInitGlob: 1,
     TargetOp: 1,
     StGlob: 1,
+    StLoc: 1,
+    LdLoc: 1,
     Move: 1,
     End: 1,
     TypeGlob: 0,
@@ -675,7 +681,7 @@ const condcost = {
     Equal: 1.1,
     TestBoolean: 1.1,
 }
-export function calculateCost(blocks: SSABlock[]) {
+export function calculateCost(blocks: SSABlock[], count: number) {
     let cost = 0
     for (const blk of blocks) {
         for (const op of blk.ops) {
@@ -697,7 +703,7 @@ export function calculateCost(blocks: SSABlock[]) {
             cost += condcost[JumpCond[blk.cond]]
         }
     }
-    return cost
+    return (cost * (count - 1)) / count
 }
 export function calculateCounterCost(blocks: SSABlock[]) {
     let cost = 3

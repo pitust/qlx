@@ -18,6 +18,8 @@ var _middlegen = require('./middlegen');
 
 var _optimizer = require('./optimizer');
 
+const refcounts = new Map()
+
 const ri = '\x005'
 const opc = '\x00+\x002'
 const cond = '\x003'
@@ -37,9 +39,9 @@ const selector = '\x00f'
 const hlcolors = {
     kw: '\x00r\x003',
     imm: '\x00r\x002',
-    ident: '\x00r\x005',
+    ident: '\x00r\x004',
     operator: '\x00r\x001',
-    number: '\x00r\x004',
+    number: '\x00r\x005',
 }
 
 const kw = [
@@ -167,9 +169,10 @@ function generateUnit(mod, fn, unit, writeCode) {
             },
             tfn => {
                 return optimizedFunctionBlocks.get(`${mod}::${tfn}`)
-            }
+            },
+            fn == '_init' // FIXME: this is a hack
         )
-    inliningCost.set(`${mod}::${fn}`, _optimizer.calculateCost.call(void 0, blocks))
+    inliningCost.set(`${mod}::${fn}`, _optimizer.calculateCost.call(void 0, blocks, refcounts.get(`${mod}::${fn}`)))
     optimizedFunctionBlocks.set(`${mod}::${fn}`, blocks)
     if (_middlegen.options.dump_ssaPreEmit) {
         _middlegen.dumpSSA.call(void 0, unit, blocks)
@@ -447,16 +450,20 @@ function generateUnit(mod, fn, unit, writeCode) {
             : '    # compiled by qlx',
     ]
 
-    // const argc = units[0].startBlock.ops.filter(e => e.op == Opcode.BindArgument).length
-    const refcounts = new Map()
-    for (const [nm] of units[1]) refcounts.set(nm, 0)
+    for (const [nm] of units[1]) refcounts.set(`_main::${nm}`, 0)
 
     for (const [, u] of units[1]) {
         for (const blk of u.blocks) {
             for (const op of blk.ops) {
-                const tgd = `${op.args[1]}`
+                const tgd = `_main::${op.args[1]}`
                 if (op.op == _middlegen.Opcode.Call) refcounts.set(tgd, refcounts.get(tgd) + 1)
             }
+        }
+    }
+    for (const blk of units[0].blocks) {
+        for (const op of blk.ops) {
+            const tgd = `_main::${op.args[1]}`
+            if (op.op == _middlegen.Opcode.Call) refcounts.set(tgd, refcounts.get(tgd) + 1)
         }
     }
 
