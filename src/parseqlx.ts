@@ -332,7 +332,7 @@ function parseget() {
     assert(code.shift().lexeme == '}')
     return new ast('dot', [target, tgd.slice(1)])
 }
-function parseset() {
+function parsepropset() {
     const target = code.shift()!.lexeme
     const tgd = code.shift()!.lexeme
     assert(tgd[0] == '.')
@@ -393,7 +393,7 @@ function parseword(): ast {
         if (code[0].lexeme == 'switch') return code.shift(), parseswitch()
         if (code[0].lexeme == 'let') return code.shift(), parselet()
         if (code[0].lexeme == 'get{') return code.shift(), parseget()
-        if (code[0].lexeme == 'set{') return code.shift(), parseset()
+        if (code[0].lexeme == 'set{') return code.shift(), parsepropset()
         if (code[0].lexeme == 'struct') return code.shift(), parsestruct()
         if (code[0].lexeme == 'draw.line')
             return (

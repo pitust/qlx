@@ -196,7 +196,7 @@ function eliminateDeadCode(blocks: SSABlock[]) {
                 if (op.op == Opcode.StGlob && op.args[0] == tgd) return false
                 if (op.args.find(e => e && typeof e == 'object' && 'glob' in e && e.glob == tgd))
                     return true
-                if (op.op == Opcode.LdGlob) return op.args[0] == tgd
+                if (op.op == Opcode.LdGlob) return op.args[1] == tgd
                 return false
             }).length
         )
@@ -601,6 +601,12 @@ function performInlining(
                                 op: Opcode.StLoc,
                                 args: []
                             })
+                        }
+                        if (op.op == Opcode.LdLoc) {
+                            op.args[1] = `${str(blk.ops[0].args[1])}::${op.args[1]}`
+                        }
+                        if (op.op == Opcode.StLoc) {
+                            op.args[0] = `${str(blk.ops[0].args[1])}::${op.args[0]}`
                         }
                         remap_args('all', op, arg => isarg(arg) ? { reg: argreg[getarg(arg)] } : null)
                         opstream2.push(op)

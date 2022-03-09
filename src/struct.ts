@@ -1,4 +1,4 @@
-import { OpArg, SSAOp, Opcode, PrimitiveType, SSABlock, SSAUnit, Type, getreg } from './middlegen'
+import { OpArg, SSAOp, Opcode, PrimitiveType, SSABlock, SSAUnit, Type, getreg, CompoundType } from './middlegen'
 
 export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<number, CompoundType>) {
     const mappedRegisters = new Map<number, Map<string, OpArg>>()
@@ -22,11 +22,12 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                 }
                 mappedRegisters.set(target, rm)
             } else if (op.op == Opcode.LdGlob || op.op == Opcode.LdLoc) {
+                const dst = (<{ reg: number }>op.args[0]).reg
+                const src = `${op.args[1]}:`
+                if (!types.has(dst)) continue;
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
-                const dst = (<{ reg: number }>op.args[0]).reg
-                const src = `${op.args[1]}:`
                 const rm = new Map<string, OpArg>()
                 for (const [nm, ty] of types.get(dst).members) {
                     const mr = getreg()
@@ -40,11 +41,12 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                 }
                 mappedRegisters.set(dst, rm)
             } else if (op.op == Opcode.StGlob) {
+                const dst = `${op.args[0]}:`
+                const src = (<{ reg: number }>op.args[1]).reg
+                if (!types.has(src)) continue;
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
-                const dst = `${op.args[0]}:`
-                const src = (<{ reg: number }>op.args[1]).reg
                 for (const [nm, ty] of types.get(src).members) {
                     transformed.push({
                         op: Opcode.StGlob,

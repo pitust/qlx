@@ -1,0 +1,6 @@
+let i = 3
+while true do
+    print i
+    printflush @message1
+    i = + 1 i
+end
