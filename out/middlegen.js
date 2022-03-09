@@ -539,22 +539,19 @@ function doGenerateSSA(node, ctx) {
 }
 // TODO: this should go to typechk/gen
  function dumpSSA(unit, b = null) {
-    function dumpSSAParameter(arg) {
+    function dumpSSAParameter(arg, op) {
+        if (op.op == Opcode.TargetOp && typeof arg == 'string') return `\x1b[0;33m${arg}\x1b[0m`
         if (typeof arg == 'string') return `\x1b[0;33m'${arg}'\x1b[0m`
         if (typeof arg == 'number') return `\x1b[0;33m${arg}\x1b[0m`
+        if (!arg) return `\x1b[0;34mnull\x1b[0m`
         if ('reg' in arg) return `\x1b[31;1mr${arg.reg}\x1b[0m`
         if ('type' in arg)
             return `\x1b[36;1m${
                 typeof arg.type == 'number' ? PrimitiveType[arg.type].toLowerCase() : arg.type.name
             }\x1b[0m`
         if ('glob' in arg) return `\x1b[36;1m${arg.glob}\x1b[0m`
-        if ('blox' in arg) return `\x1b[33;1m[ ${arg.blox} ]\x1b[0m`
+        if ('blox' in arg) return `\x1b[30;1m[ ${arg.blox} ]\x1b[0m`
         if ('arg' in arg) return `\x1b[31;1marg${arg.arg}\x1b[0m`
-        // | { reg: number }
-        // | { type: Type }
-        // | { glob: string }
-        // | { blox: string }
-        // | { arg: number }
         return '???'
     }
 
@@ -568,9 +565,13 @@ function doGenerateSSA(node, ctx) {
         if (b && !b.includes(block)) continue
         console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)
         for (const op of block.ops) {
-            console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args.map(dumpSSAParameter))
+            console.log(
+                '    \x1b[32;1m%s\x1b[0m',
+                Opcode[op.op],
+                ...op.args.map(e => dumpSSAParameter(e, op))
+            )
         }
-        console.log('  \x1b[34m%s\x1b[0m', JumpCond[block.cond], ...block.condargs)
+        console.log('  \x1b[31m%s\x1b[0m', JumpCond[block.cond], ...block.condargs)
         const labels = [[], ['target'], ['cons', 'alt']][block.targets.length]
         for (const ti in block.targets) {
             const t = block.targets[ti]
