@@ -1,4 +1,14 @@
-import { OpArg, SSAOp, Opcode, PrimitiveType, SSABlock, SSAUnit, Type, getreg, CompoundType } from './middlegen'
+import {
+    OpArg,
+    SSAOp,
+    Opcode,
+    PrimitiveType,
+    SSABlock,
+    SSAUnit,
+    Type,
+    getreg,
+    CompoundType,
+} from './middlegen'
 
 export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<number, CompoundType>) {
     const mappedRegisters = new Map<number, Map<string, OpArg>>()
@@ -15,7 +25,9 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                 const rm = new Map<string, OpArg>()
                 for (const [nm, ty] of types.get(target).members) {
                     if (typeof ty == 'object') {
-                        console.log('error: nested structures are TODO (for structure expansion logic)')
+                        console.log(
+                            'error: nested structures are TODO (for structure expansion logic)'
+                        )
                         process.exit(1)
                     }
                     rm.set(nm, { reg: getreg() })
@@ -24,7 +36,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
             } else if (op.op == Opcode.LdGlob || op.op == Opcode.LdLoc) {
                 const dst = (<{ reg: number }>op.args[0]).reg
                 const src = `${op.args[1]}:`
-                if (!types.has(dst)) continue;
+                if (!types.has(dst)) continue
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
@@ -43,7 +55,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
             } else if (op.op == Opcode.StGlob) {
                 const dst = `${op.args[0]}:`
                 const src = (<{ reg: number }>op.args[1]).reg
-                if (!types.has(src)) continue;
+                if (!types.has(src)) continue
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
@@ -75,20 +87,20 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                     pos: op.pos,
                     meta: op.meta,
                     op: Opcode.Move,
-                    args: [dst, mappedRegisters.get(src).get(prop)]
+                    args: [dst, mappedRegisters.get(src).get(prop)],
                 })
             } else if (op.op == Opcode.BindArgument) {
                 transformed.pop()
                 const name = `${op.args[0]}`
                 const type = (<{ type: Type }>op.args[2]).type
-                
+
                 if (typeof type == 'object') {
                     for (const [nm, ty] of type.members) {
                         transformed.push({
                             pos: op.pos,
                             meta: op.meta,
                             op: Opcode.BindArgument,
-                            args: [name + ':' + nm, argumentIndex++, { type: ty }]
+                            args: [name + ':' + nm, argumentIndex++, { type: ty }],
                         })
                     }
                 } else {
@@ -96,7 +108,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                         pos: op.pos,
                         meta: op.meta,
                         op: Opcode.BindArgument,
-                        args: [name, argumentIndex++, { type }]
+                        args: [name, argumentIndex++, { type }],
                     })
                 }
             } else if (op.op == Opcode.Call) {
@@ -104,7 +116,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                 const newargs: OpArg[] = op.args.slice(0, 2)
                 for (const arg of args) {
                     if (typeof arg == 'object' && 'reg' in arg && types.has(arg.reg)) {
-                        for (const [,mr] of mappedRegisters.get(arg.reg)) {
+                        for (const [, mr] of mappedRegisters.get(arg.reg)) {
                             newargs.push(mr)
                         }
                     } else {
@@ -117,4 +129,3 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
         blk.ops = transformed
     }
 }
-

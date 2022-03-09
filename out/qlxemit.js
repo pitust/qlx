@@ -398,7 +398,7 @@ function compilenode(node) {
         const oldctx = ctx
         functions = new Map()
         ctx = new Map()
-        
+
         compilenode(body)
 
         const newctx = ctx
@@ -424,9 +424,8 @@ function compilenode(node) {
     const code = _parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, inp).toString())
 
     compilenode(code)
-    
-    if (_emitter.outputs.functions.length != 0)
-        _emitter.emit[emitting_to]('jump 0 always')
 
-        writeCode(_emitter.gather.call(void 0, ))
+    if (_emitter.outputs.functions.length != 0) _emitter.emit[emitting_to]('jump 0 always')
+
+    writeCode(_emitter.gather.call(void 0, ))
 } exports.compileCode = compileCode;

@@ -5,10 +5,10 @@ export const outputs = {
 export const emit = new Proxy<Record<keyof typeof outputs, (s: string) => void>>(<any>{}, {
     get(_v, name) {
         return (str: string) => {
-            if (!str.endsWith(':')) str = '    '  + str
+            if (!str.endsWith(':')) str = '    ' + str
             outputs[name as keyof typeof outputs].push(str)
         }
-    }
+    },
 })
 export function gather(): string {
     const o: string[] = []

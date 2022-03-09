@@ -2,18 +2,37 @@ import assert from 'assert'
 import { existsSync, readFileSync } from 'fs'
 import { checkForMixin } from './plugins'
 import { options } from './middlegen' // TODO: this is an import cycle
- 
+
 const packages = new Set<string>()
 
 const kw = [
-    'struct', 'let', 'fn', 'do', 'end', 'if', 'switch',
-    'case', 'default', 'while', 'new', 'print', 'printflush', 'printf',
-    'get{', 'set{'
+    'struct',
+    'let',
+    'fn',
+    'do',
+    'end',
+    'if',
+    'switch',
+    'case',
+    'default',
+    'while',
+    'new',
+    'print',
+    'printflush',
+    'printf',
+    'get{',
+    'set{',
 ]
 
 class Lexeme {
-    constructor(public line: number, public column: number, public lexeme: string, public codeline: string, public range: [number, number]) {}
-}    
+    constructor(
+        public line: number,
+        public column: number,
+        public lexeme: string,
+        public codeline: string,
+        public range: [number, number]
+    ) {}
+}
 export function lex(s: string): Lexeme[] {
     const stp = s.split('\n')
     let lexemes: Lexeme[] = []
@@ -33,14 +52,16 @@ export function lex(s: string): Lexeme[] {
             continue
         }
         if (s[0] == ':' && /\s/.test(s[1])) {
-            lexemes.push(new Lexeme(line, column, ':', stp[line-1], [column - 1, 1]))
+            lexemes.push(new Lexeme(line, column, ':', stp[line - 1], [column - 1, 1]))
             column += 1
             s = s.slice(1)
             continue
         }
         if (/^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.test(s)) {
             const lexeme = /^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.exec(s)![0]
-            lexemes.push(new Lexeme(line, column, lexeme, stp[line-1], [column - 1, lexeme.length]))
+            lexemes.push(
+                new Lexeme(line, column, lexeme, stp[line - 1], [column - 1, lexeme.length])
+            )
             s = s.slice(lexeme.length)
             column += lexeme.length
             continue
@@ -58,7 +79,11 @@ export function lex(s: string): Lexeme[] {
 }
 
 let code: Lexeme[]
-let currentfile = '<no file>', line = 0, col = 0, codeline = '', range = [0, 0]
+let currentfile = '<no file>',
+    line = 0,
+    col = 0,
+    codeline = '',
+    range = [0, 0]
 
 export class ast {
     pos: string
@@ -118,7 +143,7 @@ const $ = {
     },
     depmod(name: string) {
         return new ast('depmod', [name])
-    }
+    },
 }
 
 function parsefn() {
@@ -129,10 +154,12 @@ function parsefn() {
         while ([...code][0].lexeme != '}') {
             const name = code.shift()!.lexeme
             assert(code.shift()!.lexeme == ':')
-            args.push(new ast('arg', [
-                name, // name
-                parsetype() // type,
-            ]))
+            args.push(
+                new ast('arg', [
+                    name, // name
+                    parsetype(), // type,
+                ])
+            )
         }
         code.shift()
     }
@@ -171,9 +198,7 @@ function parseprintf() {
     }
     const fmt = w.slice(1, -1)
     const segments = fmt.split('{}')
-    const ops: ast[] = [
-        $.print(new ast('blox', [`"${segments[0]}"`]))
-    ]
+    const ops: ast[] = [$.print(new ast('blox', [`"${segments[0]}"`]))]
     for (let i = 1; i < segments.length; i++) {
         ops.push($.print(parseword()))
         if (segments[i] == '') continue
@@ -222,20 +247,17 @@ function parseuse() {
         PATH_VARS.push(...process.env.QLX_PATH_VARS.split(':'))
     }
     for (const path_var of PATH_VARS) {
-        if (process.env[path_var])  {
+        if (process.env[path_var]) {
             packageDirectories.push(...process.env[path_var].split(':'))
         }
     }
-    const possiblePackageFiles = packageDirectories
-        .flatMap(dir => [
-            dir,
-            dir + '/src',
-            dir + '/source',
-            dir + '/pkg',
-        ])
-    const foundPackageFiles = 
-        possiblePackageFiles
-        .filter(e => existsSync(e + '/' + subpath))
+    const possiblePackageFiles = packageDirectories.flatMap(dir => [
+        dir,
+        dir + '/src',
+        dir + '/source',
+        dir + '/pkg',
+    ])
+    const foundPackageFiles = possiblePackageFiles.filter(e => existsSync(e + '/' + subpath))
     if (foundPackageFiles.length == 0) {
         console.log('\x1b[0;31mCannot find package \x1b[33;1m%s\x1b[0m!', pkg)
         process.exit(1)
@@ -253,14 +275,14 @@ function parseuse() {
     let realcode = code
     const data = parseprogram(pkgstr)
     code = realcode
-    
+
     return $.mod(pkg, data)
 }
 function parseswitch() {
     const cases: ast[] = []
     let dfl: ast = $.block([]),
         haddfl = false
-    
+
     const target = parseword()
 
     loop: while (true) {
@@ -283,11 +305,7 @@ function parseswitch() {
         }
     }
 
-    return new ast('switch', [
-        target,
-        new ast('cases', cases),
-        dfl
-    ])
+    return new ast('switch', [target, new ast('cases', cases), dfl])
 }
 function parsetype() {
     const typ = code.shift()!.lexeme
@@ -376,7 +394,11 @@ function parseword(): ast {
         if (code[0].lexeme == '>=') return code.shift(), parsebinop('greaterThanEq')
         if (code[0].lexeme == '!=') return code.shift(), parsebinop('notEqual')
         if (code[0].lexeme[0] == '"') return new ast('blox', [code.shift().lexeme!])
-        if (/^([a-zA-Z_][a-zA-Z_0-9]*::)*[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(code[0].lexeme))
+        if (
+            /^([a-zA-Z_][a-zA-Z_0-9]*::)*[a-zA-Z_][a-zA-Z_0-9]*\/(0|[1-9][0-9]*)$/.test(
+                code[0].lexeme
+            )
+        )
             return parsecall(<[string, string]>code.shift()!.lexeme.split('/'))
         if (code[0].lexeme == 'fn') return code.shift(), parsefn()
         if (code[0].lexeme == 'do') return code.shift(), parsedo()
@@ -397,22 +419,28 @@ function parseword(): ast {
         if (code[0].lexeme == 'struct') return code.shift(), parsestruct()
         if (code[0].lexeme == 'draw.line')
             return (
-                code.shift(), new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
+                code.shift(),
+                new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
             )
         if (code[0].lexeme == 'draw.clear')
             return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
         if (code[0].lexeme == 'draw.flush') return code.shift(), parsedrawflush()
-        if (code[0].lexeme == 'read') return code.shift(), new ast('memread', [parseword(), parseword()])
+        if (code[0].lexeme == 'read')
+            return code.shift(), new ast('memread', [parseword(), parseword()])
         if (code[0].lexeme == 'new') return code.shift(), new ast('new', [code.shift()!.lexeme])
-        if (code[0].lexeme == 'write') return code.shift(), new ast('memwrite', [parseword(), parseword(), parseword()])
+        if (code[0].lexeme == 'write')
+            return code.shift(), new ast('memwrite', [parseword(), parseword(), parseword()])
         if (code[0].lexeme[0] == '@') return new ast('blox', [code.shift()!.lexeme.slice(1)])
-        if (code[0].lexeme.startsWith('sense.')) return new ast('sense', [code.shift()!.lexeme.slice(6), parseword()])
+        if (code[0].lexeme.startsWith('sense.'))
+            return new ast('sense', [code.shift()!.lexeme.slice(6), parseword()])
         if (code[0].lexeme.startsWith('seton'))
             return code.shift(), new ast('seton', [parseword(), parseword()])
-        if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0].lexeme)) return $.number(+code.shift()!.lexeme)
+        if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0].lexeme))
+            return $.number(+code.shift()!.lexeme)
         if (code[0].lexeme[0] == ':') return $.number(uid(code.shift()!.lexeme.slice(1)))
         if (code.length > 1 && code[1].lexeme == '=') return parseset()
-        if (code[0].lexeme == '__Target') return code.shift(), new ast('blox', [JSON.stringify(options.target)])
+        if (code[0].lexeme == '__Target')
+            return code.shift(), new ast('blox', [JSON.stringify(options.target)])
         if (kw.includes(code[0].lexeme)) {
             console.log('error: illegal variable name', code[0].lexeme)
             process.exit(1)

@@ -398,7 +398,7 @@ function compilenode(node: ast): string {
         const oldctx = ctx
         functions = new Map<string, func>()
         ctx = new Map<string, Varref>()
-        
+
         compilenode(body)
 
         const newctx = ctx
@@ -424,9 +424,8 @@ export function compileCode(inp: string, writeCode: (s: string) => void) {
     const code = parseprogram(readFileSync(inp).toString())
 
     compilenode(code)
-    
-    if (outputs.functions.length != 0)
-        emit[emitting_to]('jump 0 always')
 
-        writeCode(gather())
+    if (outputs.functions.length != 0) emit[emitting_to]('jump 0 always')
+
+    writeCode(gather())
 }

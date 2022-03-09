@@ -1,4 +1,14 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true});var _middlegen = require('./middlegen');
+"use strict";Object.defineProperty(exports, "__esModule", {value: true});
+
+
+
+
+
+
+
+
+
+var _middlegen = require('./middlegen');
 
  function performStructureExpansion(blocks, types) {
     const mappedRegisters = new Map()
@@ -15,18 +25,21 @@
                 const rm = new Map()
                 for (const [nm, ty] of types.get(target).members) {
                     if (typeof ty == 'object') {
-                        console.log('error: nested structures are TODO (for structure expansion logic)')
+                        console.log(
+                            'error: nested structures are TODO (for structure expansion logic)'
+                        )
                         process.exit(1)
                     }
                     rm.set(nm, { reg: _middlegen.getreg.call(void 0, ) })
                 }
                 mappedRegisters.set(target, rm)
             } else if (op.op == _middlegen.Opcode.LdGlob || op.op == _middlegen.Opcode.LdLoc) {
+                const dst = (op.args[0]).reg
+                const src = `${op.args[1]}:`
+                if (!types.has(dst)) continue
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
-                const dst = (op.args[0]).reg
-                const src = `${op.args[1]}:`
                 const rm = new Map()
                 for (const [nm, ty] of types.get(dst).members) {
                     const mr = _middlegen.getreg.call(void 0, )
@@ -40,11 +53,12 @@
                 }
                 mappedRegisters.set(dst, rm)
             } else if (op.op == _middlegen.Opcode.StGlob) {
+                const dst = `${op.args[0]}:`
+                const src = (op.args[1]).reg
+                if (!types.has(src)) continue
                 // this ldglob needs modding
                 transformed.pop()
                 // build correct ldglobs
-                const dst = `${op.args[0]}:`
-                const src = (op.args[1]).reg
                 for (const [nm, ty] of types.get(src).members) {
                     transformed.push({
                         op: _middlegen.Opcode.StGlob,
@@ -73,20 +87,20 @@
                     pos: op.pos,
                     meta: op.meta,
                     op: _middlegen.Opcode.Move,
-                    args: [dst, mappedRegisters.get(src).get(prop)]
+                    args: [dst, mappedRegisters.get(src).get(prop)],
                 })
             } else if (op.op == _middlegen.Opcode.BindArgument) {
                 transformed.pop()
                 const name = `${op.args[0]}`
                 const type = (op.args[2]).type
-                
+
                 if (typeof type == 'object') {
                     for (const [nm, ty] of type.members) {
                         transformed.push({
                             pos: op.pos,
                             meta: op.meta,
                             op: _middlegen.Opcode.BindArgument,
-                            args: [name + ':' + nm, argumentIndex++, { type: ty }]
+                            args: [name + ':' + nm, argumentIndex++, { type: ty }],
                         })
                     }
                 } else {
@@ -94,7 +108,7 @@
                         pos: op.pos,
                         meta: op.meta,
                         op: _middlegen.Opcode.BindArgument,
-                        args: [name, argumentIndex++, { type }]
+                        args: [name, argumentIndex++, { type }],
                     })
                 }
             } else if (op.op == _middlegen.Opcode.Call) {
@@ -102,7 +116,7 @@
                 const newargs = op.args.slice(0, 2)
                 for (const arg of args) {
                     if (typeof arg == 'object' && 'reg' in arg && types.has(arg.reg)) {
-                        for (const [,mr] of mappedRegisters.get(arg.reg)) {
+                        for (const [, mr] of mappedRegisters.get(arg.reg)) {
                             newargs.push(mr)
                         }
                     } else {
@@ -115,4 +129,3 @@
         blk.ops = transformed
     }
 } exports.performStructureExpansion = performStructureExpansion;
-

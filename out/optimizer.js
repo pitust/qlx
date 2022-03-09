@@ -19,7 +19,7 @@ var _middlegen = require('./middlegen');
         order.push(b0)
         bset.delete(b0)
         for (const b of blocks) {
-            if (b.cond == _middlegen.JumpCond.Abort) b.targets = [];
+            if (b.cond == _middlegen.JumpCond.Abort) b.targets = []
         }
         while (bset.size) {
             const blockHeat = new Map([...blocks.values()].map(e => [e, 0]))
@@ -185,7 +185,10 @@ function eliminateDeadCode(blocks) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
-    for (const match of findall(blocks, op => op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob)) {
+    for (const match of findall(
+        blocks,
+        op => op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob
+    )) {
         const tgd = str(match.op.args[0])
         if (!tgd) continue
 
@@ -196,7 +199,7 @@ function eliminateDeadCode(blocks) {
                 if (op.op == _middlegen.Opcode.StGlob && op.args[0] == tgd) return false
                 if (op.args.find(e => e && typeof e == 'object' && 'glob' in e && e.glob == tgd))
                     return true
-                if (op.op == _middlegen.Opcode.LdGlob) return op.args[0] == tgd
+                if (op.op == _middlegen.Opcode.LdGlob) return op.args[1] == tgd
                 return false
             }).length
         )
@@ -208,7 +211,10 @@ function eliminateDeadCode(blocks) {
 }
 function bindLoads(blocks) {
     // load forwarding
-    for (const match of findall(blocks, op => op.op == _middlegen.Opcode.LdGlob || !!(op.op == _middlegen.Opcode.Move && glob(op.args[1])))) {
+    for (const match of findall(
+        blocks,
+        op => op.op == _middlegen.Opcode.LdGlob || !!(op.op == _middlegen.Opcode.Move && glob(op.args[1]))
+    )) {
         const r = reg(match.op.args[0])
         const tgd = match.op.op == _middlegen.Opcode.Move ? glob(match.op.args[1]) : str(match.op.args[1])
         if (!r || !tgd) continue
@@ -219,8 +225,8 @@ function bindLoads(blocks) {
         // then, until the end of the block, a function call or a store to target,
         // substitute the register to a global ref
         const rstart = match.blk.ops.findIndex(top => top == match.op)
-        for (const op of match.blk.ops.slice(rstart+1)) {
-            remap_args('load', op, arg => reg(arg) && reg(arg) == r ? { glob: tgd } : null) 
+        for (const op of match.blk.ops.slice(rstart + 1)) {
+            remap_args('load', op, arg => (reg(arg) && reg(arg) == r ? { glob: tgd } : null))
             if (op.op == _middlegen.Opcode.Call) break // yeah calls break this optimization
             if (op.op == _middlegen.Opcode.StGlob && str(op.args[0]) == tgd) break
             if (op.op == _middlegen.Opcode.Move && glob(op.args[1]) == tgd) break
@@ -232,20 +238,20 @@ function bindLoads(blocks) {
         const src = getarg(match.op.args[1])
         const next = getnext(match.blk, match.op)
         if (!dst || src === null || !next) continue
-        
+
         // if we are the only place someone stores to the target reg...
         // NOTE: this is SSA, not three-address code: all regs are stored to exactly once (i think)
         if (findall([match.blk], op => usesfor(op, dst, 'store')).length != 1) continue
-        
+
         // and this register is used exactly once...
         // TODO: is that a requirement?
         if (findall(blocks, op => usesfor(op, dst, 'load')).length == 1) continue
-        
+
         // and the next operation uses this new register...
         if (!usesfor(next, dst, 'load')) continue
-        
+
         // then we forward the argument
-        remap_args('load', next, arg => reg(arg) && reg(arg) == dst ? { arg: src } : null)
+        remap_args('load', next, arg => (reg(arg) && reg(arg) == dst ? { arg: src } : null))
     }
     // remove unused global loads
     for (const match of findall(blocks, op => op.op == _middlegen.Opcode.LdGlob)) {
@@ -282,7 +288,7 @@ function bindLoads(blocks) {
 
         // then we can forward it into a blox!
         const m = findall(blocks, op => usesfor(op, r, 'ldst') && op != match.op)[0]
-        remap_args('load', m.op, arg => reg(arg) && reg(arg) == r ? { blox: tgd } : null)
+        remap_args('load', m.op, arg => (reg(arg) && reg(arg) == r ? { blox: tgd } : null))
 
         // also, we can remove the opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
@@ -352,7 +358,10 @@ function propagateConstants(blocks) {
                 replacementStream[replacementStream.length - 1] = op
                 replaced = true
             }
-            if ((op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) && typeof op.args[1] == 'number') {
+            if (
+                (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) &&
+                typeof op.args[1] == 'number'
+            ) {
                 constantGlobals.set(str(op.args[0]), op.args[1])
             }
             if (op.op == _middlegen.Opcode.Move && typeof op.args[1] == 'number') {
@@ -427,27 +436,17 @@ function propagateConstants(blocks) {
             }
         }
         blk.ops = replacementStream
-        if (
-            blk.cond == _middlegen.JumpCond.TestBoolean &&
-            isKnown(blk.condargs[0])
-        ) {
+        if (blk.cond == _middlegen.JumpCond.TestBoolean && isKnown(blk.condargs[0])) {
             blk.cond = _middlegen.JumpCond.Always
             blk.targets = [blk.targets[+(getValue(blk.condargs[0]) == 0)]]
             blk.condargs = []
         }
-        if (
-            blk.cond == _middlegen.JumpCond.Equal &&
-            isKnown(blk.condargs[0]) &&
-            isKnown(blk.condargs[1])
-        ) {
+        if (blk.cond == _middlegen.JumpCond.Equal && isKnown(blk.condargs[0]) && isKnown(blk.condargs[1])) {
             blk.cond = _middlegen.JumpCond.Always
             blk.targets = [blk.targets[+(getValue(blk.condargs[0]) != getValue(blk.condargs[1]))]]
             blk.condargs = []
         }
-        if (
-            blk.cond == _middlegen.JumpCond.TestBoolean &&
-            typeof blk.condargs[0] == 'number'
-        ) {
+        if (blk.cond == _middlegen.JumpCond.TestBoolean && typeof blk.condargs[0] == 'number') {
             blk.cond = _middlegen.JumpCond.Always
             blk.targets = [blk.targets[+(blk.condargs[0] == 0)]]
             blk.condargs = []
@@ -486,8 +485,11 @@ function mergePrintOperations(blocks) {
             } else if (op.op == _middlegen.Opcode.TargetOp && op.args[0] == 'print.direct') {
                 if (wasprinting) {
                     replacementStream.pop()
-                    const top = replacementStream[replacementStream.length - 1];
-                    top.args[1] = `"${str(top.args[1]).slice(1, -1)}${str(op.args[1]).slice(1, -1)}"`
+                    const top = replacementStream[replacementStream.length - 1]
+                    top.args[1] = `"${str(top.args[1]).slice(1, -1)}${str(op.args[1]).slice(
+                        1,
+                        -1
+                    )}"`
                 }
                 wasprinting = true
             } else {
@@ -513,7 +515,8 @@ function mergeBlocks(blocks) {
         for (const blk of blocks) {
             if (blk.cond == _middlegen.JumpCond.Always && blk.ops.length == 0) {
                 // empty blocks get deleted
-                for (const p of parentsets.get(blk)) p.targets = p.targets.map(e => e == blk ? blk.targets[0] : e)
+                for (const p of parentsets.get(blk))
+                    p.targets = p.targets.map(e => (e == blk ? blk.targets[0] : e))
                 if (parentsets.get(blk).size) continue merge
             }
         }
@@ -544,10 +547,10 @@ function performRawArgumentBinding(blocks) {
 }
 const inlinedSet = new Set()
 function performInlining(
-        blocks,
-        getInliningDecision,
-        getFunctionBlocks,
-    ) {
+    blocks,
+    getInliningDecision,
+    getFunctionBlocks
+) {
     for (const blk of blocks) {
         if (blk.ops.length == 1 && blk.ops[0].op == _middlegen.Opcode.Call) {
             // call block
@@ -557,10 +560,10 @@ function performInlining(
                 const rootblock = blk
                 const callop = blk.ops[0]
                 blk.ops = []
-                
+
                 // allocate a register for the return value...
                 const retvalue = _middlegen.getreg.call(void 0, )
-                
+
                 // and all the params...
                 const argind = callop.args.slice(2)
                 const argreg = argind.map(() => _middlegen.getreg.call(void 0, ))
@@ -574,7 +577,7 @@ function performInlining(
                     })
                 })
                 let earlyops = blk.ops
-                
+
                 // okay we need to process them a bit:
                 // if they have a return, immediatly truncate the block and save the return value
                 for (const blk of blkz) {
@@ -599,20 +602,28 @@ function performInlining(
                                 pos: op.pos,
                                 meta: op.meta,
                                 op: _middlegen.Opcode.StLoc,
-                                args: []
+                                args: [],
                             })
                         }
-                        remap_args('all', op, arg => isarg(arg) ? { reg: argreg[getarg(arg)] } : null)
+                        if (op.op == _middlegen.Opcode.LdLoc) {
+                            op.args[1] = `${str(blk.ops[0].args[1])}::${op.args[1]}`
+                        }
+                        if (op.op == _middlegen.Opcode.StLoc) {
+                            op.args[0] = `${str(blk.ops[0].args[1])}::${op.args[0]}`
+                        }
+                        remap_args('all', op, arg =>
+                            isarg(arg) ? { reg: argreg[getarg(arg)] } : null
+                        )
                         opstream2.push(op)
                     }
                     blk.ops = opstream2
                 }
-                
+
                 // glue it all together
                 blk.targets = [blkz[0]]
                 blk.condargs = []
                 blk.cond = _middlegen.JumpCond.Always
-                
+
                 // snap in all their blocks too
                 blocks.push(...blkz)
                 inlinedSet.add(blk)
@@ -627,11 +638,11 @@ function performInlining(
     return blocks
 }
  function optimize(
-        _u,
-        blocks,
-        getInliningDecision,
-        getFunctionBlocks,
-    ) {
+    _u,
+    blocks,
+    getInliningDecision,
+    getFunctionBlocks
+) {
     if (_middlegen.options.rawArgRefs) performRawArgumentBinding(blocks)
     if (_middlegen.options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks)
     if (_middlegen.options.constProp)
@@ -701,8 +712,6 @@ const condcost = {
     return cost
 } exports.calculateCounterCost = calculateCounterCost;
  function makeInliningChoice(cost, counterCost) {
-    console.log(`inlining choice: +${cost} vs -${counterCost}`)
     if (cost <= counterCost) return true
     return false
 } exports.makeInliningChoice = makeInliningChoice;
-

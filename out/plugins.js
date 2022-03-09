@@ -4,7 +4,7 @@ const mixins = new Map()
 
  function checkForMixin(s, t) {
     if (!mixins.has(s)) return null
-    return (mixins.get(s))(t)
+    return mixins.get(s)(t)
 } exports.checkForMixin = checkForMixin;
 
  function registerMixin(mixin, cb) {

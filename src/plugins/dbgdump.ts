@@ -45,7 +45,11 @@ registerMixin<ICompilerCallContext, string>('@qlx/emit:late-intrinsics:_dbgdump/
 })
 
 registerMixin<null, string>('@qlx/cli:generate-mapfile', () => {
-    return JSON.stringify([dqdata, Object.fromEntries(dvdata.entries()), Object.fromEntries(adata.entries())])
+    return JSON.stringify([
+        dqdata,
+        Object.fromEntries(dvdata.entries()),
+        Object.fromEntries(adata.entries()),
+    ])
 })
 registerMixin<string, void>('@qlx/cli:load-mapfile', map => {
     const jm = JSON.parse(map)
@@ -61,12 +65,12 @@ registerMixin<string, void>('@qlx/cli:lookup-in-map', trace => {
     for (let i = 0; i < records.length; i++) {
         let label = '\x1b[0;30;1munknown'
         switch (records[i].type) {
-        case DumpRecordType.LOCAL:
-            label = '\x1b[30;1mlocal'
-            break
-        case DumpRecordType.GLOBAL:
-            label = '\x1b[31;1mglobal'
-            break
+            case DumpRecordType.LOCAL:
+                label = '\x1b[30;1mlocal'
+                break
+            case DumpRecordType.GLOBAL:
+                label = '\x1b[31;1mglobal'
+                break
         }
         let note = ''
         if (adata.has(+entries[i])) {

@@ -5,10 +5,10 @@
  const emit = new Proxy({}, {
     get(_v, name) {
         return (str) => {
-            if (!str.endsWith(':')) str = '    '  + str
+            if (!str.endsWith(':')) str = '    ' + str
             exports.outputs[name ].push(str)
         }
-    }
+    },
 }); exports.emit = emit
  function gather() {
     const o = []

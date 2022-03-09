@@ -169,6 +169,17 @@ function continueBlockCheck(
                     )
                 }
                 break
+            case _middlegen.Opcode.NewObject:
+                if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
+                    console.log(
+                        'typechk: NewObject: SSA invalid: output is not a reg: %o',
+                        op.args[0]
+                    )
+                    checked = false
+                    return
+                }
+                ltypes.set(op.args[0].reg, (op.args[1]).type)
+                break
             case _middlegen.Opcode.LdGlob:
                 if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                     console.log('typechk: LdGlob: SSA invalid: output is not a reg: %o', op.args[0])
@@ -195,6 +206,48 @@ function continueBlockCheck(
                 }
                 ltypes.set(op.args[0].reg, vTy.get(op.args[1]))
                 break
+            case _middlegen.Opcode.GetProp: {
+                const obj = immtype(op.args[1], ltypes)
+                if (typeof obj != 'object') {
+                    console.log('cannot get property %s on type %s', op.args[2], typename(obj))
+                    checked = false
+                    break
+                }
+                ltypes.set(op.args[0].reg, obj.members.get(`${op.args[2]}`))
+                break
+            }
+            case _middlegen.Opcode.SetProp: {
+                const target = ltypes.get((op.args[1]).reg)
+                ltypes.set(
+                    (op.args[0]).reg,
+                    ltypes.get((op.args[1]).reg)
+                )
+                if (typeof target != 'object') {
+                    console.log(
+                        'error: expected compund type but you decided not to give me one big sad'
+                    )
+                    checked = false
+                    break
+                }
+                const prop = `${op.args[2]}`
+                const ity = immtype(op.args[3], ltypes)
+                if (!target.members.has(prop)) {
+                    console.log('error: type %s does not have member %s', target.name, prop)
+                    checked = false
+                    break
+                }
+                const pty = target.members.get(prop)
+                if (!sameType(ity, pty)) {
+                    checked = false
+                    reportTypeDiff(
+                        pty,
+                        ity,
+                        `cannot set property {} of type %a to a value of type %b`,
+                        prop
+                    )
+                }
+                break
+            }
             case _middlegen.Opcode.BinOp:
                 if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                     console.log('typechk: LdGlob: SSA invalid: output is not a reg: %o', op.args[0])
@@ -302,7 +355,7 @@ function continueBlockCheck(
         gtypes,
         gfuncs
     )
-    _struct.performStructureExpansion.call(void 0, root.blocks, globalRegisterTypeMap)
+    if (checked) _struct.performStructureExpansion.call(void 0, root.blocks, globalRegisterTypeMap)
     for (const [fnnm, u] of funcs) {
         globalRegisterTypeMap.clear()
         continueBlockCheck(
@@ -314,7 +367,7 @@ function continueBlockCheck(
             gtypes,
             gfuncs
         )
-        _struct.performStructureExpansion.call(void 0, u.blocks, globalRegisterTypeMap)
+        if (checked) _struct.performStructureExpansion.call(void 0, u.blocks, globalRegisterTypeMap)
     }
 
     if (!checked) return false

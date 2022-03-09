@@ -30,7 +30,7 @@ export enum Opcode {
     End,
     Return,
     ReturnVoid,
-    
+
     NewObject,
     GetProp,
     SetProp,
@@ -61,7 +61,14 @@ export interface CompoundType {
     members: Map<string, Type>
 }
 export type Type = PrimitiveType | CompoundType
-export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string } | { arg: number }
+export type OpArg =
+    | string
+    | number
+    | { reg: number }
+    | { type: Type }
+    | { glob: string }
+    | { blox: string }
+    | { arg: number }
 export const name2type = new Map<string, CompoundType>()
 export interface SSAOp {
     pos: string
@@ -112,17 +119,19 @@ function construct(ctx: SSAGenCtx, type: Type): OpArg {
             ctx.currentBlock.ops.push({
                 pos: '<inline constructor for ' + type.name + ':' + nm + '>',
                 op: Opcode.SetProp,
-                args: [{ reg: newout }, { reg: out }, nm, construct(ctx, ty)]
+                args: [{ reg: newout }, { reg: out }, nm, construct(ctx, ty)],
             })
             out = newout
         }
 
         return { reg: out }
-    } 
+    }
     return 0
 }
 function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = false): OpArg {
-    function pushOp(op: SSAOp) { ctx.currentBlock.ops.push(op) }
+    function pushOp(op: SSAOp) {
+        ctx.currentBlock.ops.push(op)
+    }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'number') {
         return +thestr(node.children[0])
@@ -132,24 +141,26 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
         const tgd = thestr(tgdobj)
         const callargs = theast(callobj).children
         const reg = getreg()
-        
+
         // optimization: put all calls in their own blocks to permit optimizations
         const fwd: SSABlock = ssablk()
         const fwd2: SSABlock = ssablk()
         ctx.currentBlock.cond = JumpCond.AlwaysNoMerge
         ctx.currentBlock.condargs = []
         ctx.currentBlock.targets = [fwd]
-        
+
         fwd.cond = JumpCond.AlwaysNoMerge
         fwd.condargs = []
         fwd.targets = [fwd2]
-        
+
         fwd.ops.push({
             meta,
             pos: node.pos,
             op: Opcode.Call,
             args: [
-                isCallStatement ? null : { reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))
+                isCallStatement ? null : { reg },
+                tgd,
+                ...callargs.map(e => doGenerateExpr(theast(e), ctx)),
             ],
         })
         ctx.currentBlock = fwd2
@@ -237,7 +248,9 @@ function ssablk(): SSABlock {
 }
 const functionGenerationQueue = new Set<ast>()
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
-    function pushOp(op: SSAOp) { ctx.currentBlock.ops.push(op) }
+    function pushOp(op: SSAOp) {
+        ctx.currentBlock.ops.push(op)
+    }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'programnode') {
         for (const c of node.children) {
@@ -263,7 +276,12 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             meta,
             pos: node.pos,
             op: Opcode.SetProp,
-            args: [{ reg: reg2 }, { reg }, thestr(node.children[1]), doGenerateExpr(node.children[2], ctx)],
+            args: [
+                { reg: reg2 },
+                { reg },
+                thestr(node.children[1]),
+                doGenerateExpr(node.children[2], ctx),
+            ],
         })
         pushOp({
             meta,
@@ -280,7 +298,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         ctx.currentBlock.cond = JumpCond.Always
         ctx.currentBlock.condargs = []
         ctx.currentBlock.targets = [condblk]
-        
+
         ctx.currentBlock = condblk
         const condvalue = doGenerateExpr(theast(node.children[0]), ctx)
         ctx.currentBlock.cond = JumpCond.TestBoolean
@@ -421,7 +439,11 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             meta,
             pos: node.pos,
             op: Opcode.Function,
-            args: [name, ret, ...args.map(e => doGenerateType(theast(theast(theast(e).children[0]).children[1])))]
+            args: [
+                name,
+                ret,
+                ...args.map(e => doGenerateType(theast(theast(theast(e).children[0]).children[1]))),
+            ],
         })
         functionGenerationQueue.add(node)
         return
@@ -451,7 +473,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             meta,
             pos: node.pos,
             op: Opcode.BindArgument,
-            args: [nm, idx, doGenerateType(theast(typ))]
+            args: [nm, idx, doGenerateType(theast(typ))],
         })
         return
     }
@@ -467,9 +489,9 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     if (node.type == 'switch') {
         const [cond_, body_, dfl_] = node.children
         const cond = theast(cond_)
-        const body = theast(body_).children.map(e=>theast(e))
+        const body = theast(body_).children.map(e => theast(e))
         const dfl = theast(dfl_)
-        
+
         const cval = doGenerateExpr(cond, ctx)
         const finished = ssablk()
         ctx.blocks.add(finished)
@@ -478,7 +500,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             const morecases = ssablk()
             ctx.blocks.add(switchblk)
             ctx.blocks.add(morecases)
-            
+
             const [test, inner] = switchcase.children
             ctx.currentBlock.cond = JumpCond.Equal
             ctx.currentBlock.condargs = [cval, doGenerateExpr(theast(test), ctx)]
@@ -499,13 +521,14 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     }
     if (node.type == 'struct') {
         const items = new Map<string, Type>()
-        for (const c of node.children.slice(1)) items.set(
-            thestr(theast(c).children[0]),
-            doGenerateType(theast(theast(c).children[1])).type
-        )
+        for (const c of node.children.slice(1))
+            items.set(
+                thestr(theast(c).children[0]),
+                doGenerateType(theast(theast(c).children[1])).type
+            )
         const ct: CompoundType = {
             name: '_main:' + thestr(node.children[0]),
-            members: items
+            members: items,
         }
         name2type.set(thestr(node.children[0]), ct)
         return
@@ -554,7 +577,7 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
             blocks: new Set([blk]),
             glob: new Set<string>(),
         }
-    
+
         doGenerateSSA(body, ctx)
         if (g) {
             ctx.currentBlock.cond = JumpCond.Abort
@@ -573,7 +596,7 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
         }
         return {
             startBlock: blk,
-            blocks: ctx.blocks
+            blocks: ctx.blocks,
         }
     }
     const root = generateUnit(true, '_init', parseprogram(readFileSync(file).toString()))
@@ -586,6 +609,6 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
             cu.get(name)
         }
     }
-    
+
     return [root, cu]
 }

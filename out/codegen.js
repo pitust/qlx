@@ -10,6 +10,12 @@
 
 
 var _middlegen = require('./middlegen');
+
+
+
+
+
+
 var _optimizer = require('./optimizer');
 
 const ri = '\x005'
@@ -24,7 +30,7 @@ const fmt = {
     cflow: '\x00b',
     unit: '\x00c',
     blockio: '\x00d',
-    rawio: '\x00e'
+    rawio: '\x00e',
 }
 const selector = '\x00f'
 
@@ -75,14 +81,14 @@ function highlight(k, hotrange = [0, 0]) {
         .replaceAll('%r%', nostyle)
         .replaceAll('%s%', '\x01!+')
         .replaceAll('%S%', '\x01!-')
-    
+
     // injector...
     let pos = 0
     let state = false
     let output = ''
     let mode = ''
     let is_str = false
-    for (let i = 0;i < k.length;i++) {
+    for (let i = 0; i < k.length; i++) {
         if (k[i] == '\x01' && k[i + 1] == '!') {
             if (k[i + 2] == '+') is_str = true
             if (k[i + 2] == '-') is_str = false
@@ -99,17 +105,17 @@ function highlight(k, hotrange = [0, 0]) {
             if (state && k[i] == 'r') output += '\x00+'
             continue
         }
-        if (pos >= hotrange[0] && pos < hotrange[0]+hotrange[1] && !state) {
+        if (pos >= hotrange[0] && pos < hotrange[0] + hotrange[1] && !state) {
             state = true
             output += '\x00r\x00+'
-            if (mode) output += '\x00'+mode
+            if (mode) output += '\x00' + mode
         }
-        if (pos >= hotrange[0]+hotrange[1] && state) {
+        if (pos >= hotrange[0] + hotrange[1] && state) {
             output += '\x00-\x00r'
             state = false
-            if (mode) output += '\x00'+mode
+            if (mode) output += '\x00' + mode
         }
-        if (k[i] == '{' && k[i+1] == '}' && is_str) {
+        if (k[i] == '{' && k[i + 1] == '}' && is_str) {
             output += hlcolors.ident + '{}' + hlcolors.imm
             pos += 2
             i++
@@ -144,13 +150,21 @@ function generateUnit(mod, fn, unit, writeCode) {
     if (_middlegen.options.dump_ssaPreOpt) {
         _middlegen.dumpSSA.call(void 0, unit, blocks)
     }
-    for (let i = 0;i < 8;i++) blocks = _optimizer.optimize.call(void 0, unit, blocks, tfn => {
-        const choice = _optimizer.makeInliningChoice.call(void 0, inliningCost.get(`${mod}::${tfn}`), inliningCounterCost.get(`${mod}::${tfn}`))
-        console.log(`inlining choice for: inline[${tfn} into ${fn}]:`, choice)
-        return choice
-    }, tfn => {
-        return optimizedFunctionBlocks.get(`${mod}::${tfn}`)
-    })
+    for (let i = 0; i < 8; i++)
+        blocks = _optimizer.optimize.call(void 0, 
+            unit,
+            blocks,
+            tfn => {
+                const choice = _optimizer.makeInliningChoice.call(void 0, 
+                    inliningCost.get(`${mod}::${tfn}`),
+                    inliningCounterCost.get(`${mod}::${tfn}`)
+                )
+                return choice
+            },
+            tfn => {
+                return optimizedFunctionBlocks.get(`${mod}::${tfn}`)
+            }
+        )
     inliningCost.set(`${mod}::${fn}`, _optimizer.calculateCost.call(void 0, blocks))
     optimizedFunctionBlocks.set(`${mod}::${fn}`, blocks)
     if (_middlegen.options.dump_ssaPreEmit) {
@@ -184,46 +198,85 @@ function generateUnit(mod, fn, unit, writeCode) {
                 )
             if (op.op == _middlegen.Opcode.TypeGlob || op.op == _middlegen.Opcode.TypeLoc) {
             } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) {
-                code.push(`    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
+                code.push(
+                    `    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(
+                        op.args[1]
+                    )}`
+                )
             } else if (op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc) {
-                code.push(`    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
+                code.push(
+                    `    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(
+                        op.args[1]
+                    )}`
+                )
             } else if (op.op == _middlegen.Opcode.Move) {
-                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
+                code.push(
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`
+                )
             } else if (op.op == _middlegen.Opcode.BindArgument) {
-                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`)
+                code.push(
+                    `    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`
+                )
             } else if (op.op == _middlegen.Opcode.Call) {
-                for (let i = 0;i < op.args.length - 2;i++) {
-                    code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
+                for (let i = 0; i < op.args.length - 2; i++) {
+                    code.push(
+                        `    ${fmt.assign}set ${ri}arg-${i}.${mod}::${
+                            op.args[1]
+                        }${nostyle} ${immref(op.args[i + 2])}`
+                    )
                 }
-                code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`)
-                code.push(`    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`) 
+                code.push(
+                    `    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
+                )
+                code.push(
+                    `    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`
+                )
                 if (op.args[0]) {
-                    code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`)
+                    code.push(
+                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`
+                    )
                 }
                 functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
-                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${op.args[1]}${nostyle}`)
+                code.push(
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${
+                        op.args[1]
+                    }${nostyle}`
+                )
             } else if (op.op == _middlegen.Opcode.LdLoc) {
-                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::${fn}::${op.args[1]}${nostyle}`)
+                code.push(
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::${fn}::${
+                        op.args[1]
+                    }${nostyle}`
+                )
             } else if (op.op == _middlegen.Opcode.BinOp) {
                 code.push(
-                    `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(op.args[0])} ${immref(op.args[2])} ${immref(
-                        op.args[3]
-                    )}`
+                    `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(
+                        op.args[0]
+                    )} ${immref(op.args[2])} ${immref(op.args[3])}`
                 )
             } else if (op.op == _middlegen.Opcode.TargetOp) {
                 const ops = {
                     'print.direct': () => `${fmt.rawio}print ${ri}${op.args[1]}${nostyle}`,
                     'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
-                    _lookupblox: () => `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
-                    read: () => `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
-                    write: () => `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
+                    _lookupblox: () =>
+                        `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                    read: () =>
+                        `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(
+                            op.args[2]
+                        )} ${immref(op.args[3])}`,
+                    write: () =>
+                        `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(
+                            op.args[2]
+                        )} ${immref(op.args[3])}`,
                 }
                 if (!(op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[op.args[0]]()}`)
             } else if (op.op == _middlegen.Opcode.Return) {
-                code.push(`    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`)
+                code.push(
+                    `    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`
+                )
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == _middlegen.Opcode.ReturnVoid) {
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
@@ -243,7 +296,10 @@ function generateUnit(mod, fn, unit, writeCode) {
                 process.exit(2)
             }
             for (let i = watermark; i < code.length; i++) {
-                programLongestOpcode = Math.max(code[i].replaceAll(/\x00./g, '').length + 4, programLongestOpcode)
+                programLongestOpcode = Math.max(
+                    code[i].replaceAll(/\x00./g, '').length + 4,
+                    programLongestOpcode
+                )
                 code[i] += ' #@@ ' + op.pos + '  \t'
                 if (op.meta) code[i] += '| ' + nostyle + highlight(op.meta.line, op.meta.range)
             }
@@ -273,32 +329,55 @@ function generateUnit(mod, fn, unit, writeCode) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target} ${comment}# ${ri}note: this should never happen!`)
+                code.push(
+                    `    ${fmt.cflow}jump ${label}${target} ${comment}# ${ri}note: this should never happen!`
+                )
             } else code.push(`    ${comment}# (call block falls through)`)
         } else if (blk.cond == _middlegen.JumpCond.TestBoolean) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# consequent`)
+                code.push(
+                    `    ${
+                        fmt.cflow
+                    }jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(
+                        blk.condargs[0]
+                    )} ${comment}# consequent`
+                )
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# alternate`)
+                code.push(
+                    `    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(
+                        blk.condargs[0]
+                    )} ${comment}# alternate`
+                )
             }
         } else if (blk.cond == _middlegen.JumpCond.Equal) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# consequent`)
+                code.push(
+                    `    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} ${immref(
+                        blk.condargs[0]
+                    )} ${immref(blk.condargs[1])} ${comment}# consequent`
+                )
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# alternate`)
+                code.push(
+                    `    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} ${immref(
+                        blk.condargs[0]
+                    )} ${immref(blk.condargs[1])} ${comment}# alternate`
+                )
             }
         } else if (blk.cond == _middlegen.JumpCond.Abort) {
-            if (!_middlegen.options.noSafeAbort) code.push(`    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`)
+            if (!_middlegen.options.noSafeAbort)
+                code.push(
+                    `    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`
+                )
             else code.push(`    ${comment}# abort!`)
         } else {
             code.push(`    ${comment}# ${fmt.rawio}TODO${comment}: branch: ${_middlegen.JumpCond[blk.cond]}`)
@@ -309,7 +388,12 @@ function generateUnit(mod, fn, unit, writeCode) {
         if (tbl.length == 1) continue
         const lol = tbl.slice(0, -1).join(' #@@ ')
         const lolcount = lol.match(/\x00./g).length
-        code[i] = lol.padEnd(programLongestOpcode + lolcount * 2) + comment + '# ' + tbl.slice(-1)[0] + nostyle
+        code[i] =
+            lol.padEnd(programLongestOpcode + lolcount * 2) +
+            comment +
+            '# ' +
+            tbl.slice(-1)[0] +
+            nostyle
     }
     if (_middlegen.options.stripComments) {
         code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
@@ -336,40 +420,49 @@ function generateUnit(mod, fn, unit, writeCode) {
         e: '\x1b[0;31m', // rawio
         f: '\x1b[0;36m', // selector
     }
-    writeCode(code.join('\n').replaceAll(/\0(.)/g, (_, mode) => {
-        if (process.env.QLXCOLOR == 'on') {
-            if (mode in colormap) return colormap[mode]
-            return '{' + mode + '}'
-        } else if (process.env.QLXCOLOR == 'debug') {
-            return '{' + mode + '}'
-        } else {
-            return ''
-        }
-    }))
+    writeCode(
+        code.join('\n').replaceAll(/\0(.)/g, (_, mode) => {
+            if (process.env.QLXCOLOR == 'on') {
+                if (mode in colormap) return colormap[mode]
+                return '{' + mode + '}'
+            } else if (process.env.QLXCOLOR == 'debug') {
+                return '{' + mode + '}'
+            } else {
+                return ''
+            }
+        })
+    )
 }
- function generateCode(units, writeCode) {
+ function generateCode(
+    units,
+    writeCode
+) {
     let buf = [
-        process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx'
+        process.env.QLXCOLOR == 'on'
+            ? '    \x1b[0;30m# compiled by qlx\x1b[0m'
+            : '    # compiled by qlx',
     ]
-    
+
     // const argc = units[0].startBlock.ops.filter(e => e.op == Opcode.BindArgument).length
     const refcounts = new Map()
     for (const [nm] of units[1]) refcounts.set(nm, 0)
-    
+
     for (const [, u] of units[1]) {
         for (const blk of u.blocks) {
             for (const op of blk.ops) {
                 const tgd = `${op.args[1]}`
-                if (op.op == _middlegen.Opcode.Call) refcounts.set(tgd, refcounts.get(tgd)+1)
+                if (op.op == _middlegen.Opcode.Call) refcounts.set(tgd, refcounts.get(tgd) + 1)
             }
         }
     }
-    
+
     let buffers = new Map()
     for (const [nm, u] of units[1]) {
         let buf1 = []
         buffers.set(`_main::${nm}`, buf1)
-        buf1.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
+        buf1.push(
+            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`
+        )
         generateUnit('_main', nm, u, code => {
             buf1.push(code)
         })
@@ -385,5 +478,3 @@ function generateUnit(mod, fn, unit, writeCode) {
         writeCode(buf.join('\n'))
     }
 } exports.generateCode = generateCode;
-
-

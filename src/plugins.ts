@@ -1,10 +1,10 @@
-import path from "path"
+import path from 'path'
 
 const mixins = new Map<string, any>()
 
 export function checkForMixin<T, U>(s: string, t: T): false | U {
     if (!mixins.has(s)) return null
-    return (mixins.get(s)!)(t)
+    return mixins.get(s)!(t)
 }
 
 export function registerMixin<T, U>(mixin: string, cb: (arg: T) => U) {
