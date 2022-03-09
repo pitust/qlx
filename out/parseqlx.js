@@ -22,6 +22,8 @@ const kw = [
     'printf',
     'get{',
     'set{',
+    'get',
+    'set',
 ]
 
 class Lexeme {
