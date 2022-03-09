@@ -212,7 +212,7 @@ function continueBlockCheck(
                     checked = false
                     break
                 }
-                ltypes.set(op.args[0].reg, obj.members.get(`${op.args[2]}`))
+                ltypes.set((op.args[0]).reg, obj.members.get(`${op.args[2]}`))
                 break
             }
             case _middlegen.Opcode.SetProp: {

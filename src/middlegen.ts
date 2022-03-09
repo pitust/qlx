@@ -232,7 +232,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
 
     assert(false, 'TODO: generate expr ' + node.type)
 }
-function doGenerateType(node: ast): OpArg {
+function doGenerateType(node: ast): { type: Type } {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     if (node.type == 'voidty') return { type: PrimitiveType.Void }
     if (node.type == 'namedty') return { type: name2type.get(thestr(node.children[0])) }
@@ -280,7 +280,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
                 { reg: reg2 },
                 { reg },
                 thestr(node.children[1]),
-                doGenerateExpr(node.children[2], ctx),
+                doGenerateExpr(theast(node.children[2]), ctx),
             ],
         })
         pushOp({
@@ -527,7 +527,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
                 doGenerateType(theast(theast(c).children[1])).type
             )
         const ct: CompoundType = {
-            name: '_main:' + thestr(node.children[0]),
+            name: 'struct _main:' + thestr(node.children[0]),
             members: items,
         }
         name2type.set(thestr(node.children[0]), ct)
@@ -537,9 +537,27 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     console.log(node)
     assert(false, 'todo: handle ' + node.type)
 }
+// TODO: this should go to typechk/gen
 export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
-    // for now
-    // TODO: this should go to typechk/gen
+    function dumpSSAParameter(arg: OpArg): string {
+        if (typeof arg == 'string') return `\x1b[0;33m'${arg}'\x1b[0m`
+        if (typeof arg == 'number') return `\x1b[0;33m${arg}\x1b[0m`
+        if ('reg' in arg) return `\x1b[31;1mr${arg.reg}\x1b[0m`
+        if ('type' in arg)
+            return `\x1b[36;1m${
+                typeof arg.type == 'number' ? PrimitiveType[arg.type].toLowerCase() : arg.type.name
+            }\x1b[0m`
+        if ('glob' in arg) return `\x1b[36;1m${arg.glob}\x1b[0m`
+        if ('blox' in arg) return `\x1b[33;1m[ ${arg.blox} ]\x1b[0m`
+        if ('arg' in arg) return `\x1b[31;1marg${arg.arg}\x1b[0m`
+        // | { reg: number }
+        // | { type: Type }
+        // | { glob: string }
+        // | { blox: string }
+        // | { arg: number }
+        return '???'
+    }
+
     let i = 0
     const m = new Map<SSABlock, string>()
     m.set(unit.startBlock, 'entry')
@@ -550,7 +568,7 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
         if (b && !b.includes(block)) continue
         console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)
         for (const op of block.ops) {
-            console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args)
+            console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args.map(dumpSSAParameter))
         }
         console.log('  \x1b[34m%s\x1b[0m', JumpCond[block.cond], ...block.condargs)
         const labels = [[], ['target'], ['cons', 'alt']][block.targets.length]

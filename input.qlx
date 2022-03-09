@@ -4,6 +4,7 @@ struct struc do
 end
 
 fn lel { arg: struc } -> void
+  set{ arg .foo } = 69
   printf "arg.foo: {}" get{ arg .foo }
 end
 

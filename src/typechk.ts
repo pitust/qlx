@@ -1,4 +1,4 @@
-import { OpArg, Opcode, PrimitiveType, SSABlock, SSAUnit, Type } from './middlegen'
+import { CompoundType, OpArg, Opcode, PrimitiveType, SSABlock, SSAUnit, Type } from './middlegen'
 import { performStructureExpansion } from './struct'
 
 interface CachedTypecheck {
@@ -212,7 +212,7 @@ function continueBlockCheck(
                     checked = false
                     break
                 }
-                ltypes.set(op.args[0].reg, obj.members.get(`${op.args[2]}`))
+                ltypes.set((<{ reg: number }>op.args[0]).reg, obj.members.get(`${op.args[2]}`))
                 break
             }
             case Opcode.SetProp: {
