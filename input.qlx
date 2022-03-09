@@ -1,22 +1,9 @@
-fn send_one { value: float } -> void
-  while == read @cell1 0 0 do end
-  write @cell1 1 value
-  write @cell1 0 1
-end
-fn recv_one { } -> float  
-  while == read @cell1 0 1 do end
-  write @cell1 0 1
-  while == read @cell1 0 1 do end
-  return read @cell1 1
+struct foo do
+  item: float
 end
 
-switch :__Target
-  case :client do
-    printf "recieved: {}" recv_one/0
-    printflush @message1
-  end
-  case :server do
-    send_one/1 @@time
-  end
-end
+let f: foo = new foo
+printf "f.item: {}" get{ f .item }
+
+
 

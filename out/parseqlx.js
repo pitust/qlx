@@ -1,8 +1,15 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }var _assert = require('assert'); var _assert2 = _interopRequireDefault(_assert);
 var _fs = require('fs');
 var _plugins = require('./plugins');
-
+var _middlegen = require('./middlegen'); // TODO: this is an import cycle
+ 
 const packages = new Set()
+
+const kw = [
+    'struct', 'let', 'fn', 'do', 'end', 'if', 'switch',
+    'case', 'default', 'while', 'new', 'print', 'printflush', 'printf',
+    'get{', 'set{'
+]
 
 class Lexeme {
     constructor( line,  column,  lexeme,  codeline,  range) {;this.line = line;this.column = column;this.lexeme = lexeme;this.codeline = codeline;this.range = range;}
@@ -25,7 +32,7 @@ class Lexeme {
             column = 1
             continue
         }
-        if (s[0] == ':') {
+        if (s[0] == ':' && /\s/.test(s[1])) {
             lexemes.push(new Lexeme(line, column, ':', stp[line-1], [column - 1, 1]))
             column += 1
             s = s.slice(1)
@@ -305,6 +312,26 @@ function parseset() {
     _assert2.default.call(void 0, code.shift().lexeme == '=')
     return new ast('set', [c, parseword()])
 }
+function parsestruct() {
+    const structname = code.shift().lexeme
+    _assert2.default.call(void 0, code.shift().lexeme == 'do')
+    const items = []
+    while (code[0].lexeme != 'end') {
+        const nam = code.shift().lexeme
+        _assert2.default.call(void 0, code.shift().lexeme == ':')
+        const ty = parsetype()
+        items.push(new ast('structitem', [nam, ty]))
+    }
+    code.shift()
+    return new ast('struct', [structname, ...items])
+}
+function parseget() {
+    const target = parseword()
+    const tgd = code.shift().lexeme
+    _assert2.default.call(void 0, tgd[0] == '.')
+    _assert2.default.call(void 0, code.shift().lexeme == '}')
+    return new ast('dot', [target, tgd.slice(1)])
+}
 const map = new Map()
 const genuid = (
     id => () =>
@@ -312,6 +339,7 @@ const genuid = (
 )(/* nice big offset */ 0x414243)
 
 function uid(s) {
+    if (s == '__Target') s = _middlegen.options.target
     if (!map.has(s)) {
         map.set(s, genuid())
         _plugins.checkForMixin('@qlx/parse:create-atom', [s, map.get(s)])
@@ -355,6 +383,8 @@ function parseword() {
         if (code[0].lexeme == 'while') return code.shift(), parsewhile()
         if (code[0].lexeme == 'switch') return code.shift(), parseswitch()
         if (code[0].lexeme == 'let') return code.shift(), parselet()
+        if (code[0].lexeme == 'get{') return code.shift(), parseget()
+        if (code[0].lexeme == 'struct') return code.shift(), parsestruct()
         if (code[0].lexeme == 'draw.line')
             return (
                 code.shift(), new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
@@ -363,13 +393,20 @@ function parseword() {
             return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
         if (code[0].lexeme == 'draw.flush') return code.shift(), parsedrawflush()
         if (code[0].lexeme == 'read') return code.shift(), new ast('memread', [parseword(), parseword()])
+        if (code[0].lexeme == 'new') return code.shift(), new ast('new', [code.shift().lexeme])
+        if (code[0].lexeme == 'write') return code.shift(), new ast('memwrite', [parseword(), parseword(), parseword()])
         if (code[0].lexeme[0] == '@') return new ast('blox', [code.shift().lexeme.slice(1)])
         if (code[0].lexeme.startsWith('sense.')) return new ast('sense', [code.shift().lexeme.slice(6), parseword()])
         if (code[0].lexeme.startsWith('seton'))
             return code.shift(), new ast('seton', [parseword(), parseword()])
         if (/^([1-9][0-9]*|0)(\.[0-9]*)?$/.test(code[0].lexeme)) return $.number(+code.shift().lexeme)
         if (code[0].lexeme[0] == ':') return $.number(uid(code.shift().lexeme.slice(1)))
-        if (code[1].lexeme == '=') return parseset()
+        if (code.length > 1 && code[1].lexeme == '=') return parseset()
+        if (code[0].lexeme == '__Target') return code.shift(), new ast('blox', [JSON.stringify(_middlegen.options.target)])
+        if (kw.includes(code[0].lexeme)) {
+            console.log('error: illegal variable name', code[0].lexeme)
+            process.exit(1)
+        }
         return $.var(code.shift().lexeme)
     })()
     line = oldstate.line

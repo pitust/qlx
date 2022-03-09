@@ -12,9 +12,11 @@ var _qlxemit = require('./qlxemit');
         _middlegen.options.bindLoads = true
         _middlegen.options.noSafeAbort = true
         _middlegen.options.eliminateBranches = true
+        _middlegen.options.rawArgRefs = true
         _middlegen.options.reorderBlocks = true
         _middlegen.options.constProp = true
         _middlegen.options.eliminateDeadCode = true
+        _middlegen.options.inline = true
         _middlegen.options.mergePrint = true
         _middlegen.options.mergeBlocks = true
         _middlegen.options.max = true
@@ -22,6 +24,9 @@ var _qlxemit = require('./qlxemit');
     const writeCode = (code) => (output ? _fs.writeFileSync.call(void 0, output, code) : console.log(code))
     if (_middlegen.options.ssa) {
         const u = _middlegen.generateSSA.call(void 0, input)
+        if (_middlegen.options.dump_freshSsa) {
+            _middlegen.dumpSSA.call(void 0, u[0])
+        }
         if (!_typechk.checkAllTypes.call(void 0, u)) {
             console.log('fatal error: type check failed; exiting')
             process.exit(1)

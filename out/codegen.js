@@ -121,11 +121,16 @@ function highlight(k, hotrange = [0, 0]) {
     return output
 }
 
+const optimizedFunctionBlocks = new Map()
+const inliningCost = new Map()
+const inliningCounterCost = new Map()
+const functionCallReferenceSet = new Set()
 function generateUnit(mod, fn, unit, writeCode) {
     function immref(arg) {
         if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
         if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
-        if ('reg' in arg) return `${ri}${mod}::${fn}::r${arg.reg}${nostyle}`
+        if ('reg' in arg) return `${ri}r${arg.reg}${nostyle}`
+        if ('arg' in arg) return `${ri}arg-${arg.arg}.${mod}::${fn}${nostyle}`
         if ('glob' in arg) return `${glob}${mod}::_init::${arg.glob}${nostyle}`
         if ('blox' in arg) return glob + arg.blox + nostyle
         console.log(`error: no rtti support rn!`)
@@ -134,11 +139,22 @@ function generateUnit(mod, fn, unit, writeCode) {
 
     const afterBlock = new Map()
     let blocks = _optimizer.orderBlocks.call(void 0, unit.blocks, unit.startBlock)
+    inliningCounterCost.set(`${mod}::${fn}`, _optimizer.calculateCounterCost.call(void 0, blocks))
     // run optimization passes 8 times
-    for (let i = 0;i < 8;i++) blocks = _optimizer.optimize.call(void 0, unit, blocks)
-    if (_middlegen.options.dumpSsa) {
+    if (_middlegen.options.dump_ssaPreOpt) {
         _middlegen.dumpSSA.call(void 0, unit, blocks)
-        return
+    }
+    for (let i = 0;i < 8;i++) blocks = _optimizer.optimize.call(void 0, unit, blocks, tfn => {
+        const choice = _optimizer.makeInliningChoice.call(void 0, inliningCost.get(`${mod}::${tfn}`), inliningCounterCost.get(`${mod}::${tfn}`))
+        console.log(`inlining choice for: inline[${tfn} into ${fn}]:`, choice)
+        return choice
+    }, tfn => {
+        return optimizedFunctionBlocks.get(`${mod}::${tfn}`)
+    })
+    inliningCost.set(`${mod}::${fn}`, _optimizer.calculateCost.call(void 0, blocks))
+    optimizedFunctionBlocks.set(`${mod}::${fn}`, blocks)
+    if (_middlegen.options.dump_ssaPreEmit) {
+        _middlegen.dumpSSA.call(void 0, unit, blocks)
     }
     let code = []
     const genid = (
@@ -172,14 +188,17 @@ function generateUnit(mod, fn, unit, writeCode) {
             } else if (op.op == _middlegen.Opcode.Move) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.BindArgument) {
-                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn} ${ri}arg-${op.args[1]}.${mod}::${op.args[1]}${nostyle}`)
+                code.push(`    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`)
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0;i < op.args.length - 2;i++) {
                     code.push(`    ${fmt.assign}set ${ri}arg-${i}.${mod}::${op.args[1]}${nostyle} ${immref(op.args[i+2])}`)
                 }
                 code.push(`    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}2${nostyle}`)
                 code.push(`    ${fmt.assign}jump ${selector}always ${label}fn.${mod}::${op.args[1]}${nostyle}`) 
-                // process.exit(69)
+                if (op.args[0]) {
+                    code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`)
+                }
+                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${op.args[1]}${nostyle}`)
             } else if (op.op == _middlegen.Opcode.LdLoc) {
@@ -196,9 +215,14 @@ function generateUnit(mod, fn, unit, writeCode) {
                     'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
                     _lookupblox: () => `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                    read: () => `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])}`,
+                    write: () => `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                 }
                 if (!(op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[op.args[0]]()}`)
+            } else if (op.op == _middlegen.Opcode.Return) {
+                code.push(`    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`)
+                code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == _middlegen.Opcode.ReturnVoid) {
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == _middlegen.Opcode.End) {
@@ -254,15 +278,22 @@ function generateUnit(mod, fn, unit, writeCode) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# consequent`)
-            } else {
-                code.push(`    ${comment}# consequent (eliminated)`)
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
                 code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(blk.condargs[0])} ${comment}# alternate`)
-            } else {
-                code.push(`    ${comment}# alternate (eliminated)`)
+            }
+        } else if (blk.cond == _middlegen.JumpCond.Equal) {
+            if (!hasCons) {
+                const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
+                usedlabels.add(target)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# consequent`)
+            }
+            if (!hasAlt) {
+                const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
+                usedlabels.add(target)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} ${immref(blk.condargs[0])} ${immref(blk.condargs[1])} ${comment}# alternate`)
             }
         } else if (blk.cond == _middlegen.JumpCond.Abort) {
             if (!_middlegen.options.noSafeAbort) code.push(`    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`)
@@ -279,7 +310,7 @@ function generateUnit(mod, fn, unit, writeCode) {
         code[i] = lol.padEnd(programLongestOpcode + lolcount * 2) + comment + '# ' + tbl.slice(-1)[0] + nostyle
     }
     if (_middlegen.options.stripComments) {
-        code = code.map(line => line.split('#')[0]).filter(e => e.trim())
+        code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
     }
     if (_middlegen.options.eliminateBranches) {
         code = code.filter(e => !(e.endsWith(':') && !usedlabels.has(e.slice(4, -3))))
@@ -315,17 +346,42 @@ function generateUnit(mod, fn, unit, writeCode) {
     }))
 }
  function generateCode(units, writeCode) {
-    const buf = [process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx']
+    let buf = [
+        process.env.QLXCOLOR == 'on' ? '    \x1b[0;30m# compiled by qlx\x1b[0m' : '    # compiled by qlx'
+    ]
+    
+    // const argc = units[0].startBlock.ops.filter(e => e.op == Opcode.BindArgument).length
+    const refcounts = new Map()
+    for (const [nm] of units[1]) refcounts.set(nm, 0)
+    
+    for (const [, u] of units[1]) {
+        for (const blk of u.blocks) {
+            for (const op of blk.ops) {
+                const tgd = `${op.args[1]}`
+                if (op.op == _middlegen.Opcode.Call) refcounts.set(tgd, refcounts.get(tgd)+1)
+            }
+        }
+    }
+    
+    let buffers = new Map()
+    for (const [nm, u] of units[1]) {
+        let buf1 = []
+        buffers.set(`_main::${nm}`, buf1)
+        buf1.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
+        generateUnit('_main', nm, u, code => {
+            buf1.push(code)
+        })
+    }
     generateUnit('_main', '_init', units[0], code => {
         buf.push(code)
     })
-    for (const [nm, u] of units[1]) {
-        buf.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`)
-        generateUnit('_main', nm, u, code => {
-            buf.push(code)
-        })
+    if (functionCallReferenceSet.size && _middlegen.options.noEnd) {
+        buf.push(process.env.QLXCOLOR == 'on' ? `    \x1b[34mend\x1b[0m` : '    end')
     }
-    writeCode(buf.join('\n'))
+    for (const u of functionCallReferenceSet) buf.push(...buffers.get(u))
+    if (!_middlegen.options.cgOutput_suppress) {
+        writeCode(buf.join('\n'))
+    }
 } exports.generateCode = generateCode;
 
 

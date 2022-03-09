@@ -30,6 +30,10 @@ export enum Opcode {
     End,
     Return,
     ReturnVoid,
+    
+    NewObject,
+    GetProp,
+    SetProp,
 }
 export enum JumpCond {
     Always,
@@ -52,8 +56,13 @@ export enum PrimitiveType {
 }
 import { Options } from './options'
 export const options: Options = <Options>{}
-export type Type = PrimitiveType
+export interface CompoundType {
+    name: string
+    members: Map<string, Type>
+}
+export type Type = PrimitiveType | CompoundType
 export type OpArg = string | number | { reg: number } | { type: Type } | { glob: string } | { blox: string } | { arg: number }
+export const name2type = new Map<string, CompoundType>()
 export interface SSAOp {
     pos: string
     meta?: {
@@ -90,6 +99,28 @@ export const getreg = (
     i => () =>
         i++
 )(1)
+function construct(ctx: SSAGenCtx, type: Type): OpArg {
+    if (typeof type == 'object') {
+        let out = getreg()
+        ctx.currentBlock.ops.push({
+            pos: '<inline constructor for ' + type.name + '>',
+            op: Opcode.NewObject,
+            args: [{ reg: out }, { type }],
+        })
+        for (const [nm, ty] of type.members) {
+            let newout = getreg()
+            ctx.currentBlock.ops.push({
+                pos: '<inline constructor for ' + type.name + ':' + nm + '>',
+                op: Opcode.SetProp,
+                args: [{ reg: newout }, { reg: out }, nm, construct(ctx, ty)]
+            })
+            out = newout
+        }
+
+        return { reg: out }
+    } 
+    return 0
+}
 function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = false): OpArg {
     function pushOp(op: SSAOp) { ctx.currentBlock.ops.push(op) }
     const meta = { line: node.codeline, range: node.range }
@@ -186,12 +217,27 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
         })
         return { reg }
     }
+    if (node.type == 'new') {
+        return construct(ctx, name2type.get(thestr(node.children[0])))
+    }
+    if (node.type == 'dot') {
+        const tgd = doGenerateExpr(theast(node.children[0]), ctx)
+        const reg = getreg()
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.GetProp,
+            args: [{ reg }, tgd, thestr(node.children[1])],
+        })
+        return { reg }
+    }
 
     assert(false, 'TODO: generate expr ' + node.type)
 }
 function doGenerateType(node: ast): OpArg {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     if (node.type == 'voidty') return { type: PrimitiveType.Void }
+    if (node.type == 'namedty') return { type: name2type.get(thestr(node.children[0])) }
     assert(false, 'TODO: type ' + node.type)
 }
 function ssablk(): SSABlock {
@@ -300,7 +346,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
             args: [thestr(node.children[1]), doGenerateExpr(theast(node.children[2]), ctx)],
         })
-        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[0]))
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
         return
     }
     if (node.type == 'let') {
@@ -426,6 +472,19 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         ctx.currentBlock.condargs = []
         ctx.currentBlock.targets = [finished]
         ctx.currentBlock = finished
+        return
+    }
+    if (node.type == 'struct') {
+        const items = new Map<string, Type>()
+        for (const c of node.children.slice(1)) items.set(
+            thestr(theast(c).children[0]),
+            doGenerateType(theast(theast(c).children[1])).type
+        )
+        const ct: CompoundType = {
+            name: '_main:' + thestr(node.children[0]),
+            members: items
+        }
+        name2type.set(thestr(node.children[0]), ct)
         return
     }
 

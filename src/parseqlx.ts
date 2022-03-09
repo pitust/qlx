@@ -5,6 +5,12 @@ import { options } from './middlegen' // TODO: this is an import cycle
  
 const packages = new Set<string>()
 
+const kw = [
+    'struct', 'let', 'fn', 'do', 'end', 'if', 'switch',
+    'case', 'default', 'while', 'new', 'print', 'printflush', 'printf',
+    'get{', 'set{'
+]
+
 class Lexeme {
     constructor(public line: number, public column: number, public lexeme: string, public codeline: string, public range: [number, number]) {}
 }    
@@ -306,6 +312,26 @@ function parseset() {
     assert(code.shift().lexeme == '=')
     return new ast('set', [c, parseword()])
 }
+function parsestruct() {
+    const structname = code.shift()!.lexeme
+    assert(code.shift().lexeme == 'do')
+    const items: ast[] = []
+    while (code[0].lexeme != 'end') {
+        const nam = code.shift().lexeme
+        assert(code.shift().lexeme == ':')
+        const ty = parsetype()
+        items.push(new ast('structitem', [nam, ty]))
+    }
+    code.shift()
+    return new ast('struct', [structname, ...items])
+}
+function parseget() {
+    const target = parseword()
+    const tgd = code.shift()!.lexeme
+    assert(tgd[0] == '.')
+    assert(code.shift().lexeme == '}')
+    return new ast('dot', [target, tgd.slice(1)])
+}
 const map = new Map<string, number>()
 const genuid = (
     id => () =>
@@ -357,6 +383,8 @@ function parseword(): ast {
         if (code[0].lexeme == 'while') return code.shift(), parsewhile()
         if (code[0].lexeme == 'switch') return code.shift(), parseswitch()
         if (code[0].lexeme == 'let') return code.shift(), parselet()
+        if (code[0].lexeme == 'get{') return code.shift(), parseget()
+        if (code[0].lexeme == 'struct') return code.shift(), parsestruct()
         if (code[0].lexeme == 'draw.line')
             return (
                 code.shift(), new ast('drawline', [parseword(), parseword(), parseword(), parseword()])
@@ -365,6 +393,7 @@ function parseword(): ast {
             return code.shift(), new ast('drawclear', [parseword(), parseword(), parseword()])
         if (code[0].lexeme == 'draw.flush') return code.shift(), parsedrawflush()
         if (code[0].lexeme == 'read') return code.shift(), new ast('memread', [parseword(), parseword()])
+        if (code[0].lexeme == 'new') return code.shift(), new ast('new', [code.shift()!.lexeme])
         if (code[0].lexeme == 'write') return code.shift(), new ast('memwrite', [parseword(), parseword(), parseword()])
         if (code[0].lexeme[0] == '@') return new ast('blox', [code.shift()!.lexeme.slice(1)])
         if (code[0].lexeme.startsWith('sense.')) return new ast('sense', [code.shift()!.lexeme.slice(6), parseword()])
@@ -374,6 +403,10 @@ function parseword(): ast {
         if (code[0].lexeme[0] == ':') return $.number(uid(code.shift()!.lexeme.slice(1)))
         if (code.length > 1 && code[1].lexeme == '=') return parseset()
         if (code[0].lexeme == '__Target') return code.shift(), new ast('blox', [JSON.stringify(options.target)])
+        if (kw.includes(code[0].lexeme)) {
+            console.log('error: illegal variable name', code[0].lexeme)
+            process.exit(1)
+        }
         return $.var(code.shift()!.lexeme)
     })()
     line = oldstate.line

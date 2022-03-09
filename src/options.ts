@@ -1,8 +1,12 @@
 export interface Options {
     target: string
     bindLoads: boolean
+    cgOutput_suppress: boolean
     constProp: boolean
-    dumpSsa: boolean
+    dump_ast: boolean
+    dump_freshSsa: boolean
+    dump_ssaPreEmit: boolean
+    dump_ssaPreOpt: boolean
     eliminateBranches: boolean
     eliminateDeadCode: boolean
     forward: boolean

@@ -1,6 +1,6 @@
 import { checkForMixin, loadPlugin } from './plugins'
 import { checkAllTypes } from './typechk'
-import { generateSSA, options, Options } from './middlegen'
+import { generateSSA, options, Options, dumpSSA } from './middlegen'
 import { generateCode } from './codegen'
 import { readFileSync, writeFileSync } from 'fs'
 import { compileCode } from './qlxemit'
@@ -24,6 +24,9 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
     const writeCode = (code: string) => (output ? writeFileSync(output, code) : console.log(code))
     if (options.ssa) {
         const u = generateSSA(input)
+        if (options.dump_freshSsa) {
+            dumpSSA(u[0])
+        }
         if (!checkAllTypes(u)) {
             console.log('fatal error: type check failed; exiting')
             process.exit(1)

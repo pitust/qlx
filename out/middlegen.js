@@ -30,6 +30,10 @@ var Opcode; (function (Opcode) {
     const End = TargetOp + 1; Opcode[Opcode["End"] = End] = "End";
     const Return = End + 1; Opcode[Opcode["Return"] = Return] = "Return";
     const ReturnVoid = Return + 1; Opcode[Opcode["ReturnVoid"] = ReturnVoid] = "ReturnVoid";
+    
+    const NewObject = ReturnVoid + 1; Opcode[Opcode["NewObject"] = NewObject] = "NewObject";
+    const GetProp = NewObject + 1; Opcode[Opcode["GetProp"] = GetProp] = "GetProp";
+    const SetProp = GetProp + 1; Opcode[Opcode["SetProp"] = SetProp] = "SetProp";
 })(Opcode || (exports.Opcode = Opcode = {}));
 var JumpCond; (function (JumpCond) {
     const Always = 0; JumpCond[JumpCond["Always"] = Always] = "Always";
@@ -48,22 +52,8 @@ var PrimitiveType; (function (PrimitiveType) {
     const Float = Bool + 1; PrimitiveType[PrimitiveType["Float"] = Float] = "Float";
     const String = Float + 1; PrimitiveType[PrimitiveType["String"] = String] = "String";
     const Void = String + 1; PrimitiveType[PrimitiveType["Void"] = Void] = "Void";
+    const Null = Void + 1; PrimitiveType[PrimitiveType["Null"] = Null] = "Null";
 })(PrimitiveType || (exports.PrimitiveType = PrimitiveType = {}));
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
  const options = {}; exports.options = options
 
@@ -72,6 +62,7 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
 
+ const name2type = new Map(); exports.name2type = name2type
 
 
 
@@ -100,11 +91,38 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
 
-const getreg = (
+
+
+
+
+ const getreg = (
     i => () =>
         i++
-)(1)
-function doGenerateExpr(node, ctx) {
+)(1); exports.getreg = getreg
+function construct(ctx, type) {
+    if (typeof type == 'object') {
+        let out = exports.getreg.call(void 0, )
+        ctx.currentBlock.ops.push({
+            pos: '<inline constructor for ' + type.name + '>',
+            op: Opcode.NewObject,
+            args: [{ reg: out }, { type }],
+        })
+        for (const [nm, ty] of type.members) {
+            let newout = exports.getreg.call(void 0, )
+            ctx.currentBlock.ops.push({
+                pos: '<inline constructor for ' + type.name + ':' + nm + '>',
+                op: Opcode.SetProp,
+                args: [{ reg: newout }, { reg: out }, nm, construct(ctx, ty)]
+            })
+            out = newout
+        }
+
+        return { reg: out }
+    } 
+    return 0
+}
+function doGenerateExpr(node, ctx, isCallStatement = false) {
+    function pushOp(op) { ctx.currentBlock.ops.push(op) }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'number') {
         return +thestr(node.children[0])
@@ -113,7 +131,7 @@ function doGenerateExpr(node, ctx) {
         const [tgdobj, callobj] = node.children
         const tgd = thestr(tgdobj)
         const callargs = theast(callobj).children
-        const reg = getreg()
+        const reg = exports.getreg.call(void 0, )
         
         // optimization: put all calls in their own blocks to permit optimizations
         const fwd = ssablk()
@@ -126,24 +144,25 @@ function doGenerateExpr(node, ctx) {
         fwd.condargs = []
         fwd.targets = [fwd2]
         
-        ctx.currentBlock = fwd
         fwd.ops.push({
             meta,
             pos: node.pos,
             op: Opcode.Call,
-            args: [{ reg }, tgd, ...callargs.map(e => doGenerateExpr(e, ctx))],
+            args: [
+                isCallStatement ? null : { reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))
+            ],
         })
         ctx.currentBlock = fwd2
         ctx.blocks.add(fwd)
         ctx.blocks.add(fwd2)
-        return reg;
+        return { reg }
     }
     if (node.type == 'binop') {
         const opc = thestr(node.children[0])
         const lhs = theast(node.children[1])
         const rhs = theast(node.children[2])
-        const reg = getreg()
-        ctx.currentBlock.ops.push({
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.BinOp,
@@ -153,8 +172,8 @@ function doGenerateExpr(node, ctx) {
     }
     if (node.type == 'blox') {
         const vname = thestr(node.children[0])
-        const reg = getreg()
-        ctx.currentBlock.ops.push({
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.TargetOp,
@@ -162,14 +181,53 @@ function doGenerateExpr(node, ctx) {
         })
         return { reg }
     }
+    if (node.type == 'memread') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['read', { reg }, cell, addr],
+        })
+        return { reg }
+    }
+    if (node.type == 'memwrite') {
+        const cell = doGenerateExpr(theast(node.children[0]), ctx)
+        const addr = doGenerateExpr(theast(node.children[1]), ctx)
+        const value = doGenerateExpr(theast(node.children[2]), ctx)
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['write', { reg }, cell, addr, value],
+        })
+        return { reg }
+    }
     if (node.type == 'varnode') {
         const vname = thestr(node.children[0])
-        const reg = getreg()
-        ctx.currentBlock.ops.push({
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.glob.has(vname) ? Opcode.LdGlob : Opcode.LdLoc,
             args: [{ reg }, vname],
+        })
+        return { reg }
+    }
+    if (node.type == 'new') {
+        return construct(ctx, exports.name2type.get(thestr(node.children[0])))
+    }
+    if (node.type == 'dot') {
+        const tgd = doGenerateExpr(theast(node.children[0]), ctx)
+        const reg = exports.getreg.call(void 0, )
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.GetProp,
+            args: [{ reg }, tgd, thestr(node.children[1])],
         })
         return { reg }
     }
@@ -179,6 +237,7 @@ function doGenerateExpr(node, ctx) {
 function doGenerateType(node) {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     if (node.type == 'voidty') return { type: PrimitiveType.Void }
+    if (node.type == 'namedty') return { type: exports.name2type.get(thestr(node.children[0])) }
     _assert2.default.call(void 0, false, 'TODO: type ' + node.type)
 }
 function ssablk() {
@@ -191,6 +250,7 @@ function ssablk() {
 }
 const functionGenerationQueue = new Set()
 function doGenerateSSA(node, ctx) {
+    function pushOp(op) { ctx.currentBlock.ops.push(op) }
     const meta = { line: node.codeline, range: node.range }
     if (node.type == 'programnode') {
         for (const c of node.children) {
@@ -274,23 +334,23 @@ function doGenerateSSA(node, ctx) {
         }
     }
     if (node.type == 'typedlet') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.TypeGlob : Opcode.TypeLoc,
             args: [thestr(node.children[1]), doGenerateType(theast(node.children[0]))],
         })
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
             args: [thestr(node.children[1]), doGenerateExpr(theast(node.children[2]), ctx)],
         })
-        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[0]))
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
         return
     }
     if (node.type == 'let') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StInitGlob : Opcode.StInitLoc,
@@ -300,7 +360,7 @@ function doGenerateSSA(node, ctx) {
         return
     }
     if (node.type == 'set') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc, // todo: store to globals from within functions
@@ -312,7 +372,7 @@ function doGenerateSSA(node, ctx) {
     if (node.type == 'printnode') {
         if (theast(node.children[0]).type == 'blox') {
             // direct emission
-            ctx.currentBlock.ops.push({
+            pushOp({
                 meta,
                 pos: node.pos,
                 op: Opcode.TargetOp,
@@ -321,7 +381,7 @@ function doGenerateSSA(node, ctx) {
             return
         } else {
             // value emission
-            ctx.currentBlock.ops.push({
+            pushOp({
                 meta,
                 pos: node.pos,
                 op: Opcode.TargetOp,
@@ -331,7 +391,7 @@ function doGenerateSSA(node, ctx) {
         }
     }
     if (node.type == 'printflushnode') {
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.TargetOp,
@@ -345,8 +405,8 @@ function doGenerateSSA(node, ctx) {
         const args = []
         const argc = +thestr(node.children[2])
         const ret = doGenerateType(theast(node.children[3]))
-        if (argc) args.push(...blk.children.slice(0, argc))
-        ctx.currentBlock.ops.push({
+        if (argc) args.push(...blk.children.slice(0, argc).map(theast))
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.Function,
@@ -355,8 +415,8 @@ function doGenerateSSA(node, ctx) {
         functionGenerationQueue.add(node)
         return
     }
-    if (node.type == 'callnode') {
-        doGenerateExpr(node, ctx)
+    if (node.type == 'callnode' || node.type == 'memwrite') {
+        doGenerateExpr(node, ctx, node.type == 'callnode')
         return
     }
     if (node.type == 'bindarg') {
@@ -364,15 +424,69 @@ function doGenerateSSA(node, ctx) {
         const idx = +thestr(idx_)
         const [nm_, typ] = theast(c0).children
         const nm = thestr(nm_)
-        ctx.currentBlock.ops.push({
+        pushOp({
             meta,
             pos: node.pos,
             op: Opcode.BindArgument,
-            args: [nm, idx, doGenerateType(typ)]
+            args: [nm, idx, doGenerateType(theast(typ))]
         })
         return
     }
-
+    if (node.type == 'returnnode') {
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.Return,
+            args: [doGenerateExpr(theast(node.children[0]), ctx)],
+        })
+        return
+    }
+    if (node.type == 'switch') {
+        const [cond_, body_, dfl_] = node.children
+        const cond = theast(cond_)
+        const body = theast(body_).children.map(e=>theast(e))
+        const dfl = theast(dfl_)
+        
+        const cval = doGenerateExpr(cond, ctx)
+        const finished = ssablk()
+        ctx.blocks.add(finished)
+        for (const switchcase of body) {
+            const switchblk = ssablk()
+            const morecases = ssablk()
+            ctx.blocks.add(switchblk)
+            ctx.blocks.add(morecases)
+            
+            const [test, inner] = switchcase.children
+            ctx.currentBlock.cond = JumpCond.Equal
+            ctx.currentBlock.condargs = [cval, doGenerateExpr(test, ctx)]
+            ctx.currentBlock.targets = [switchblk, morecases]
+            ctx.currentBlock = switchblk
+            doGenerateSSA(inner, ctx)
+            ctx.currentBlock.cond = JumpCond.Always
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [finished]
+            ctx.currentBlock = morecases
+        }
+        doGenerateSSA(dfl, ctx)
+        ctx.currentBlock.cond = JumpCond.Always
+        ctx.currentBlock.condargs = []
+        ctx.currentBlock.targets = [finished]
+        ctx.currentBlock = finished
+        return
+    }
+    if (node.type == 'struct') {
+        const items = new Map()
+        for (const c of node.children.slice(1)) items.set(
+            thestr(theast(c).children[0]),
+            doGenerateType(theast(theast(c).children[1])).type
+        )
+        const ct = {
+            name: '_main:' + thestr(node.children[0]),
+            members: items
+        }
+        exports.name2type.set(thestr(node.children[0]), ct)
+        return
+    }
 
     console.log(node)
     _assert2.default.call(void 0, false, 'todo: handle ' + node.type)
@@ -445,7 +559,7 @@ function doGenerateSSA(node, ctx) {
         const name = thestr(n.children[0])
         const body = theast(n.children[1])
         cu.set(name, generateUnit(false, name, body))
-        if (theast(n.children[2]).name == 'voiddty') {
+        if (theast(n.children[2]).type == 'voiddty') {
             cu.get(name)
         }
     }

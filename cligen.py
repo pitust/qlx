@@ -2,7 +2,6 @@
 options = {
     'bind-loads': '[ssa] bind registers to locals when loaded',
     'const-prop': '[ssa] propagate constants accross the code',
-    'dump-ssa': '[ssa] dump the SSA generated',
     'eliminate-branches': '[ssa] eliminate branches in cases where fallthrough is enough',
     'eliminate-dead-code': '[ssa] eliminate some dead instructions.',
     'forward': '[ssa] forward moves when used once',
@@ -17,6 +16,12 @@ options = {
     'reorder-blocks': '[ssa] use weighted block reordering, rather than sequential block order',
     'ssa': 'Enable experimental SSA codegen (single-statement assigned)',
     'strip-comments': 'strip comments from the output to save on lines',
+    
+    'dump=ast': 'dump AST',
+    'dump=fresh-ssa': '[ssa] dump initial SSA contents',
+    'dump=ssa-pre-opt': '[ssa] dump SSA before optimization',
+    'dump=ssa-pre-emit': '[ssa] dump final SSA to be emitted',
+    'cg-output=suppress': 'do not output anything',
 }
 keydata = []
 for k in options.keys():
@@ -31,7 +36,7 @@ def mapname(s: str) -> str:
     data = s.split('-')
     for i in range(1, len(data)):
         data[i] = data[i][0].upper() + data[i][1:]
-    return ''.join(data)
+    return ''.join(data).replace('=', '_')
 
 longest_name = 0
 

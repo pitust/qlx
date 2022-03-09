@@ -2,8 +2,12 @@ import { onCLIParseComplete } from './cli';
 const options = {
     target: 'default',
     bindLoads: false,
+    cgOutput_suppress: false,
     constProp: false,
-    dumpSsa: false,
+    dump_ast: false,
+    dump_freshSsa: false,
+    dump_ssaPreEmit: false,
+    dump_ssaPreOpt: false,
     eliminateBranches: false,
     eliminateDeadCode: false,
     forward: false,
@@ -39,8 +43,12 @@ for (let arg of process.argv.slice(2)) {
     if (arg.startsWith('--target=')) { arg = arg.slice(9); isNextTarget = true; }
     if (isNextTarget) { isNextTarget = false; options.target = arg; continue; }
     else if (arg == '-fbind-loads') options.bindLoads = true; 
+    else if (arg == '-fcg-output=suppress') options.cgOutput_suppress = true; 
     else if (arg == '-fconst-prop') options.constProp = true; 
-    else if (arg == '-fdump-ssa') options.dumpSsa = true; 
+    else if (arg == '-fdump=ast') options.dump_ast = true; 
+    else if (arg == '-fdump=fresh-ssa') options.dump_freshSsa = true; 
+    else if (arg == '-fdump=ssa-pre-emit') options.dump_ssaPreEmit = true; 
+    else if (arg == '-fdump=ssa-pre-opt') options.dump_ssaPreOpt = true; 
     else if (arg == '-feliminate-branches') options.eliminateBranches = true; 
     else if (arg == '-feliminate-dead-code') options.eliminateDeadCode = true; 
     else if (arg == '-fforward') options.forward = true; 
@@ -65,9 +73,15 @@ function _printHelpMessage() {
     console.log("Usage: qlx [OPTIONS...] <input> [-o<output>]");
     console.log("    -fbind-loads            - bind registers to locals when loaded");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fcg-output=suppress    - do not output anything");
     console.log("    -fconst-prop            - propagate constants accross the code");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
-    console.log("    -fdump-ssa              - dump the SSA generated");
+    console.log("    -fdump=ast              - dump AST");
+    console.log("    -fdump=fresh-ssa        - dump initial SSA contents");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fdump=ssa-pre-emit     - dump final SSA to be emitted");
+    console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
+    console.log("    -fdump=ssa-pre-opt      - dump SSA before optimization");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
     console.log("    -feliminate-branches    - eliminate branches in cases where fallthrough is enough");
     console.log("                              \x1b[1mNeeds\x1b[0m -fssa");
@@ -99,7 +113,9 @@ function _printHelpMessage() {
 }
 if (options.bindLoads && !options.ssa) _printHelpMessage();
 if (options.constProp && !options.ssa) _printHelpMessage();
-if (options.dumpSsa && !options.ssa) _printHelpMessage();
+if (options.dump_freshSsa && !options.ssa) _printHelpMessage();
+if (options.dump_ssaPreEmit && !options.ssa) _printHelpMessage();
+if (options.dump_ssaPreOpt && !options.ssa) _printHelpMessage();
 if (options.eliminateBranches && !options.ssa) _printHelpMessage();
 if (options.eliminateDeadCode && !options.ssa) _printHelpMessage();
 if (options.forward && !options.ssa) _printHelpMessage();

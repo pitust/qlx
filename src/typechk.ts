@@ -1,4 +1,5 @@
 import { OpArg, Opcode, PrimitiveType, SSABlock, SSAUnit, Type } from './middlegen'
+import { performStructureExpansion } from './struct'
 
 interface CachedTypecheck {
     localTypes: Map<number, Type>
@@ -27,6 +28,7 @@ function typename(ty: Type) {
     if (ty == PrimitiveType.Null) return 'null'
     if (ty == PrimitiveType.Float) return 'float'
     if (ty == PrimitiveType.String) return 'string'
+    if (typeof ty == 'object' && 'name' in ty) return 'struct{' + ty.name + '}'
     return '<unknown>'
 }
 function reportTypeDiff(left: Type, right: Type, fmt: string, ...args: any[]) {
@@ -39,6 +41,7 @@ interface FuncInfo {
     ret: Type
     args: Type[]
 }
+const globalRegisterTypeMap = new Map<number, CompoundType>()
 function continueBlockCheck(
     block: SSABlock, mod: string, func: string, entryTypes: Map<number, Type>,
     vTy: Map<string, Type>, gTy: Map<string, Type>, gFn: Map<string, FuncInfo>
@@ -74,7 +77,7 @@ function continueBlockCheck(
     for (const op of block.ops) {
         switch (op.op) {
         case Opcode.End:
-            return
+            break
         case Opcode.TypeGlob:
             if (gTy.has(<string>op.args[0])) {
                 if (!sameType(gTy.get(<string>op.args[0]), <Type>op.args[1])) {
@@ -98,6 +101,31 @@ function continueBlockCheck(
                 )
             }
             break
+        case Opcode.SetProp: {
+            const target = ltypes.get((<{ reg: number }>op.args[1]).reg)
+            ltypes.set((<{ reg: number }>op.args[0]).reg, ltypes.get((<{ reg: number }>op.args[1]).reg))
+            if (typeof target != 'object') {
+                console.log('error: expected compund type but you decided not to give me one big sad')
+                checked = false
+                break
+            }
+            const prop = `${op.args[2]}`
+            const ity = immtype(op.args[3], ltypes)
+            if (!target.members.has(prop)) {
+                console.log('error: type %s does not have member %s', target.name, prop)
+                checked = false
+                break
+            }
+            const pty = target.members.get(prop)
+            if (!sameType(ity, pty)) {
+                checked = false
+                reportTypeDiff(
+                    pty, ity,
+                    `cannot set property {} of type %a to a value of type %b`, prop
+                )
+            }
+            break
+        }
         case Opcode.BindArgument:
             console.log(mod, func)
             if (!vTy.has(<string>op.args[0])) {
@@ -139,6 +167,16 @@ function continueBlockCheck(
             }
             ltypes.set(op.args[0].reg, gTy.get(<string>op.args[1]))
             break
+        case Opcode.GetProp: {
+            const obj = immtype(op.args[1], ltypes)
+            if (typeof obj != 'object') {
+                console.log('cannot get property %s on type %s', op.args[2], typename(obj))
+                checked = false
+                break
+            }
+            ltypes.set(op.args[0].reg, obj.members.get(`${op.args[2]}`))
+            break
+        }
         case Opcode.LdLoc:
             if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                 console.log('typechk: LdLoc: SSA invalid: output is not a reg: %o', op.args[0])
@@ -151,6 +189,14 @@ function continueBlockCheck(
                 return
             }
             ltypes.set(op.args[0].reg, vTy.get(<string>op.args[1]))
+            break
+        case Opcode.NewObject:
+            if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
+                console.log('typechk: NewObject: SSA invalid: output is not a reg: %o', op.args[0])
+                checked = false
+                return
+            }
+            ltypes.set(op.args[0].reg, (<{ type: Type }>op.args[1]).type)
             break
         case Opcode.BinOp:
             if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
@@ -235,6 +281,7 @@ function continueBlockCheck(
             return
         }
     }
+    for (const [id, ty] of ltypes) if (typeof ty == 'object') globalRegisterTypeMap.set(id, ty)
     for (const t of block.targets) continueBlockCheck(t, mod, func, ltypes, vTy, gTy, gFn)
 }
 
@@ -242,9 +289,13 @@ export function checkAllTypes(units: [SSAUnit, Map<string, SSAUnit>]) {
     const gtypes = new Map()
     const gfuncs = new Map()
     const [root, funcs] = units
+    globalRegisterTypeMap.clear()
     continueBlockCheck(root.startBlock, '_main', '_init', new Map<number, Type>(), null, gtypes, gfuncs)
+    performStructureExpansion(root.blocks, globalRegisterTypeMap)
     for (const [fnnm, u] of funcs) {
+        globalRegisterTypeMap.clear()
         continueBlockCheck(u.startBlock, '_main', fnnm, new Map<number, Type>(), new Map<string, Type>(), gtypes, gfuncs)
+        performStructureExpansion(root.blocks, globalRegisterTypeMap)
     }
         
     if (!checked) return false

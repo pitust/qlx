@@ -1,4 +1,5 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true});var _middlegen = require('./middlegen');
+var _struct = require('./struct');
 
 
 
@@ -27,18 +28,20 @@ function typename(ty) {
     if (ty == _middlegen.PrimitiveType.Null) return 'null'
     if (ty == _middlegen.PrimitiveType.Float) return 'float'
     if (ty == _middlegen.PrimitiveType.String) return 'string'
+    if (typeof ty == 'object' && 'name' in ty) return 'struct{' + ty.name + '}'
     return '<unknown>'
 }
 function reportTypeDiff(left, right, fmt, ...args) {
     const tnl = typename(left)
     const tnr = typename(right)
     const p = fmt.includes('%a') ? [] : [`${tnl} is not ${tnr}`]
-    console.log('ERROR:', fmt.replace(/{}/g, () => args.shift()).replace('%a', tnl).replace('%b', tnr), ...p)
+    console.log('\x1b[31mERROR\x1b[0m:', fmt.replace(/{}/g, () => args.shift()).replace('%a', tnl).replace('%b', tnr), ...p)
 }
 
 
 
 
+const globalRegisterTypeMap = new Map()
 function continueBlockCheck(
     block, mod, func, entryTypes,
     vTy, gTy, gFn
@@ -74,7 +77,7 @@ function continueBlockCheck(
     for (const op of block.ops) {
         switch (op.op) {
         case _middlegen.Opcode.End:
-            return
+            break
         case _middlegen.Opcode.TypeGlob:
             if (gTy.has(op.args[0])) {
                 if (!sameType(gTy.get(op.args[0]), op.args[1])) {
@@ -98,6 +101,31 @@ function continueBlockCheck(
                 )
             }
             break
+        case _middlegen.Opcode.SetProp: {
+            const target = ltypes.get((op.args[1]).reg)
+            ltypes.set((op.args[0]).reg, ltypes.get((op.args[1]).reg))
+            if (typeof target != 'object') {
+                console.log('error: expected compund type but you decided not to give me one big sad')
+                checked = false
+                break
+            }
+            const prop = `${op.args[2]}`
+            const ity = immtype(op.args[3], ltypes)
+            if (!target.members.has(prop)) {
+                console.log('error: type %s does not have member %s', target.name, prop)
+                checked = false
+                break
+            }
+            const pty = target.members.get(prop)
+            if (!sameType(ity, pty)) {
+                checked = false
+                reportTypeDiff(
+                    pty, ity,
+                    `cannot set property {} of type %a to a value of type %b`, prop
+                )
+            }
+            break
+        }
         case _middlegen.Opcode.BindArgument:
             console.log(mod, func)
             if (!vTy.has(op.args[0])) {
@@ -139,6 +167,16 @@ function continueBlockCheck(
             }
             ltypes.set(op.args[0].reg, gTy.get(op.args[1]))
             break
+        case _middlegen.Opcode.GetProp: {
+            const obj = immtype(op.args[1], ltypes)
+            if (typeof obj != 'object') {
+                console.log('cannot get property %s on type %s', op.args[2], typename(obj))
+                checked = false
+                break
+            }
+            ltypes.set(op.args[0].reg, obj.members.get(`${op.args[2]}`))
+            break
+        }
         case _middlegen.Opcode.LdLoc:
             if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                 console.log('typechk: LdLoc: SSA invalid: output is not a reg: %o', op.args[0])
@@ -152,6 +190,14 @@ function continueBlockCheck(
             }
             ltypes.set(op.args[0].reg, vTy.get(op.args[1]))
             break
+        case _middlegen.Opcode.NewObject:
+            if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
+                console.log('typechk: NewObject: SSA invalid: output is not a reg: %o', op.args[0])
+                checked = false
+                return
+            }
+            ltypes.set(op.args[0].reg, (op.args[1]).type)
+            break
         case _middlegen.Opcode.BinOp:
             if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                 console.log('typechk: LdGlob: SSA invalid: output is not a reg: %o', op.args[0])
@@ -159,8 +205,10 @@ function continueBlockCheck(
                 return
             }
             const opTypes = {
+                equal: _middlegen.PrimitiveType.Bool,
                 notEqual: _middlegen.PrimitiveType.Bool,
                 add: _middlegen.PrimitiveType.Float,
+                sub: _middlegen.PrimitiveType.Float,
             }
             if (!(op.args[1] in opTypes)) {
                 console.log('Bad binop:', op.args[1])
@@ -171,6 +219,15 @@ function continueBlockCheck(
             break
         case _middlegen.Opcode.TargetOp:
             // target ops are assumed to be fine
+            // we need to set up the outputs though
+            if (op.args[0] == 'read') {
+                const out = op.args[1]
+                ltypes.set(out.reg, _middlegen.PrimitiveType.Float)
+            }
+            if (op.args[0] == '_lookupblox') {
+                const out = op.args[1]
+                ltypes.set(out.reg, _middlegen.PrimitiveType.Float)
+            }
             break
         case _middlegen.Opcode.Function:
             const target = op.args[0]
@@ -184,8 +241,17 @@ function continueBlockCheck(
             break
         case _middlegen.Opcode.ReturnVoid:
             break
+        case _middlegen.Opcode.Return:
+            if (!sameType(gFn.get(func).ret, immtype(op.args[0], ltypes))) {
+                checked = false
+                reportTypeDiff(
+                    immtype(op.args[0], ltypes),
+                    gTy.get(op.args[0]),
+                    'cannot return value of type %a as the function {}::{} returns type %b', mod, func
+                )
+            }
+            break
         case _middlegen.Opcode.Call:
-            console.log(op)
             const output = op.args[0]
             const tgd = op.args[1]
             const callargs = op.args.slice(2)
@@ -196,18 +262,18 @@ function continueBlockCheck(
             }
             const fndata = gFn.get(tgd)
             if (fndata.args.length != callargs.length) {
-                console.log(`error: ${op.pos}: function ${tgd}/${args.length} does not match the prototype ${tgd}/${fndata}.`)
+                console.log(`error: ${op.pos}: function ${tgd}/${callargs.length} does not match the prototype ${tgd}/${fndata}.`)
                 checked = false
                 return
             }
             for (let i = 0;i < fndata.args.length;i++) {
                 if (!sameType(fndata.args[i], immtype(callargs[i], ltypes))) {
-                    console.log(`error: ${op.pos}: function ${tgd}/${args.length} cannot be called because parameters are incorrect.`)
+                    console.log(`error: ${op.pos}: function ${tgd}/${callargs.length} cannot be called because parameters are incorrect.`)
                     checked = false
                     return
                 }
             }
-            ltypes.set(output.reg, fndata.ret)
+            if (output) ltypes.set(output.reg, fndata.ret)
             break
         default:
             console.log('Bad opcode: ', _middlegen.Opcode[op.op], ...op.args)
@@ -215,6 +281,7 @@ function continueBlockCheck(
             return
         }
     }
+    for (const [id, ty] of ltypes) if (typeof ty == 'object') globalRegisterTypeMap.set(id, ty)
     for (const t of block.targets) continueBlockCheck(t, mod, func, ltypes, vTy, gTy, gFn)
 }
 
@@ -222,9 +289,13 @@ function continueBlockCheck(
     const gtypes = new Map()
     const gfuncs = new Map()
     const [root, funcs] = units
+    globalRegisterTypeMap.clear()
     continueBlockCheck(root.startBlock, '_main', '_init', new Map(), null, gtypes, gfuncs)
+    _struct.performStructureExpansion.call(void 0, root.blocks, globalRegisterTypeMap)
     for (const [fnnm, u] of funcs) {
+        globalRegisterTypeMap.clear()
         continueBlockCheck(u.startBlock, '_main', fnnm, new Map(), new Map(), gtypes, gfuncs)
+        _struct.performStructureExpansion.call(void 0, root.blocks, globalRegisterTypeMap)
     }
         
     if (!checked) return false

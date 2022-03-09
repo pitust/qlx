@@ -141,6 +141,9 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     let blocks = orderBlocks(unit.blocks, unit.startBlock)
     inliningCounterCost.set(`${mod}::${fn}`, calculateCounterCost(blocks))
     // run optimization passes 8 times
+    if (options.dump_ssaPreOpt) {
+        dumpSSA(unit, blocks)
+    }
     for (let i = 0;i < 8;i++) blocks = optimize(unit, blocks, tfn => {
         const choice = makeInliningChoice(inliningCost.get(`${mod}::${tfn}`), inliningCounterCost.get(`${mod}::${tfn}`))
         console.log(`inlining choice for: inline[${tfn} into ${fn}]:`, choice)
@@ -150,9 +153,8 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     })
     inliningCost.set(`${mod}::${fn}`, calculateCost(blocks))
     optimizedFunctionBlocks.set(`${mod}::${fn}`, blocks)
-    if (options.dumpSsa) {
+    if (options.dump_ssaPreEmit) {
         dumpSSA(unit, blocks)
-        return
     }
     let code: string[] = []
     const genid = (
@@ -377,7 +379,9 @@ export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: 
         buf.push(process.env.QLXCOLOR == 'on' ? `    \x1b[34mend\x1b[0m` : '    end')
     }
     for (const u of functionCallReferenceSet) buf.push(...buffers.get(u))
-    writeCode(buf.join('\n'))
+    if (!options.cgOutput_suppress) {
+        writeCode(buf.join('\n'))
+    }
 }
 
 

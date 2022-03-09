@@ -311,13 +311,13 @@ function propagateConstants(blocks: SSABlock[]): boolean {
         const constantGlobals = new Map<string, number>()
         function isKnown(val: OpArg): boolean {
             if (reg(val)) return constantValues.has(reg(val))
-            if (typeof val == 'object' && 'glob' in val) return constantGlobals.has(arg.glob)
+            if (typeof val == 'object' && 'glob' in val) return constantGlobals.has(val.glob)
             if (typeof val == 'number') return true
             return false
         }
         function getValue(val: OpArg): number {
             if (reg(val)) return constantValues.get(reg(val))!
-            if (typeof val == 'object' && 'glob' in val) return constantGlobals.get(arg.glob)!
+            if (typeof val == 'object' && 'glob' in val) return constantGlobals.get(val.glob)!
             if (typeof val == 'number') return val
             throw new Error('ice: bad getValue')
         }
@@ -644,6 +644,7 @@ const opcost = {
     StGlob: 1,
     Move: 1,
     End: 1,
+    TypeGlob: 0,
 }
 const condcost = {
     Always: 0.5,
