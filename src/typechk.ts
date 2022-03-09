@@ -168,6 +168,22 @@ function continueBlockCheck(
                     )
                 }
                 break
+            case Opcode.StLoc:
+                if (!vTy.has(<string>op.args[0])) {
+                    checked = false
+                    break
+                }
+                if (!sameType(vTy.get(<string>op.args[0]), immtype(op.args[1], ltypes))) {
+                    checked = false
+                    reportTypeDiff(
+                        vTy.get(<string>op.args[0]),
+                        immtype(op.args[1], ltypes),
+                        'cannot store value of type %a to {}::{} of type %b',
+                        mod,
+                        op.args[0]
+                    )
+                }
+                break
             case Opcode.NewObject:
                 if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
                     console.log(
