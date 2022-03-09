@@ -26,6 +26,7 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         const u = generateSSA(input)
         if (options.dump_freshSsa) {
             dumpSSA(u[0])
+            for (const [,p] of u[1]) dumpSSA(p)
         }
         if (!checkAllTypes(u)) {
             console.log('fatal error: type check failed; exiting')

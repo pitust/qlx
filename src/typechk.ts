@@ -295,7 +295,7 @@ export function checkAllTypes(units: [SSAUnit, Map<string, SSAUnit>]) {
     for (const [fnnm, u] of funcs) {
         globalRegisterTypeMap.clear()
         continueBlockCheck(u.startBlock, '_main', fnnm, new Map<number, Type>(), new Map<string, Type>(), gtypes, gfuncs)
-        performStructureExpansion(root.blocks, globalRegisterTypeMap)
+        performStructureExpansion(u.blocks, globalRegisterTypeMap)
     }
         
     if (!checked) return false

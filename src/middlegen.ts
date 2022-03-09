@@ -262,6 +262,30 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         for (const c of node.children) doGenerateSSA(theast(c), ctx)
         return
     }
+    if (node.type == 'dotset') {
+        const val = thestr(node.children[0])
+        const reg = getreg()
+        const reg2 = getreg()
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.glob.has(val) ? Opcode.LdGlob : Opcode.LdLoc,
+            args: [{ reg }, val],
+        })
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.SetProp,
+            args: [{ reg: reg2 }, { reg }, thestr(node.children[1]), doGenerateExpr(node.children[2], ctx)],
+        })
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.glob.has(val) ? Opcode.StGlob : Opcode.StLoc,
+            args: [val, { reg: reg2 }],
+        })
+        return
+    }
     if (node.type == 'while') {
         const condblk: SSABlock = ssablk()
         const body: SSABlock = ssablk()

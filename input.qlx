@@ -1,9 +1,15 @@
-struct foo do
-  item: float
+struct struc do
+  foo: float
+  bar: float
 end
 
-let f: foo = new foo
-printf "f.item: {}" get{ f .item }
+fn lel { arg: struc } -> void
+  printf "arg.foo: {}" get{ arg .foo }
+end
 
+let f = new struc
+set{ f .foo } = 69
+set{ f .bar } = 420
 
+lel/1 f
 
