@@ -208,6 +208,29 @@ function eliminateDeadCode(blocks: SSABlock[]) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
+    for (const match of findall(
+        blocks,
+        op => op.op == Opcode.StLoc || op.op == Opcode.StInitLoc
+    )) {
+        const tgd = str(match.op.args[0])
+        if (!tgd) continue
+
+        // if nobody uses this global...
+        if (
+            findall(blocks, op => {
+                // fix a misoptimization in some structure cases
+                if (op.op == Opcode.StLoc && op.args[0] == tgd) return false
+                if (op.args.find(e => e && typeof e == 'object' && 'loc' in e && e.glob == tgd))
+                    return true
+                if (op.op == Opcode.LdLoc) return op.args[1] == tgd
+                return false
+            }).length
+        )
+            continue
+
+        // then remove this opcode
+        match.blk.ops = match.blk.ops.filter(op => match.op != op)
+    }
 }
 function bindLoads(blocks: SSABlock[]) {
     // load forwarding
@@ -253,8 +276,8 @@ function bindLoads(blocks: SSABlock[]) {
         // then we forward the argument
         remap_args('load', next, arg => (reg(arg) && reg(arg) == dst ? { arg: src } : null))
     }
-    // remove unused global loads
-    for (const match of findall(blocks, op => op.op == Opcode.LdGlob)) {
+    // remove unused local/global loads
+    for (const match of findall(blocks, op => op.op == Opcode.LdGlob || op.op == Opcode.LdLoc)) {
         const r = reg(match.op.args[0])
         const tgd = str(match.op.args[1])
         if (!r || !tgd) continue

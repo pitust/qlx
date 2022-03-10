@@ -5,7 +5,7 @@ end
 
 fn lel { arg: struc } -> void
   set{ arg .foo } = 69
-  printf "arg.foo: {}" get{ arg .foo }
+  printf "arg.foo: {}" arg
 end
 
 let f = new struc

@@ -52,7 +52,7 @@ var _middlegen = require('./middlegen');
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            } else if (op.op == _middlegen.Opcode.StGlob) {
+            } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StLoc) {
                 const dst = `${op.args[0]}:`
                 const src = (op.args[1]).reg
                 if (!types.has(src)) continue
@@ -61,7 +61,7 @@ var _middlegen = require('./middlegen');
                 // build correct ldglobs
                 for (const [nm, ty] of types.get(src).members) {
                     transformed.push({
-                        op: _middlegen.Opcode.StGlob,
+                        op: op.op,
                         args: [dst + nm, mappedRegisters.get(src).get(nm)],
                         pos: op.pos,
                         meta: op.meta,
@@ -124,6 +124,42 @@ var _middlegen = require('./middlegen');
                     }
                 }
                 op.args = newargs
+            } else if (op.op == _middlegen.Opcode.TargetOp && op.args[0] == 'print.ref') {
+                const val = (op.args[1]).reg
+                if (!types.has(val)) continue
+                transformed.pop()
+                const type = types.get(val)
+                // emit prints for that
+                // the format is:
+                // > struct <name> { $(<key>: <value>;)* }
+                function emitcprint(c) {
+                    transformed.push({
+                        op: _middlegen.Opcode.TargetOp,
+                        args: ['print.direct', JSON.stringify(c)],
+                        pos: op.pos,
+                        meta: op.meta
+                    })
+                }
+                function emitrprint(r) {
+                    transformed.push({
+                        op: _middlegen.Opcode.TargetOp,
+                        args: ['print.ref', r],
+                        pos: op.pos,
+                        meta: op.meta
+                    })
+                }
+                let state = 0
+                for (const [nm, ty] of type.members) {
+                    if (state == 0) {
+                        emitcprint(`${type.name} { ${nm}: `)
+                        state = 1
+                    } else if (state == 1) {
+                        emitcprint(`; ${nm}: `)
+                    }
+                    emitrprint(mappedRegisters.get(val).get(nm))
+                }
+                if (state == 0) emitcprint(`struct ${type.name} {}`)
+                else if (state == 1) emitcprint(`; }`)
             }
         }
         blk.ops = transformed

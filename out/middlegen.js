@@ -69,6 +69,7 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
 
+
  const name2type = new Map(); exports.name2type = name2type
 
 
@@ -103,8 +104,7 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
  const getreg = (
-    i => () =>
-        i++
+    i => () => i++
 )(1); exports.getreg = getreg
 function construct(ctx, type) {
     if (typeof type == 'object') {
@@ -550,6 +550,7 @@ function doGenerateSSA(node, ctx) {
                 typeof arg.type == 'number' ? PrimitiveType[arg.type].toLowerCase() : arg.type.name
             }\x1b[0m`
         if ('glob' in arg) return `\x1b[36;1m${arg.glob}\x1b[0m`
+        if ('loc' in arg) return `\x1b[36;1m.${arg.glob}\x1b[0m`
         if ('blox' in arg) return `\x1b[30;1m[ ${arg.blox} ]\x1b[0m`
         if ('arg' in arg) return `\x1b[31;1marg${arg.arg}\x1b[0m`
         return '???'
