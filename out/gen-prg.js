@@ -38,20 +38,30 @@ class Cache {constructor() { Cache.prototype.__init.call(this); }
     }
     callable(or) {
         const this_ = this
-        return k => { return this_.get_or(k, or) }
+        return k => {
+            return this_.get_or(k, or)
+        }
     }
 }
 function multicache(final) {
-    return (c => (a, b) => c(a)(b))(new Cache()
-        .callable(t1 =>
+    return (
+        c => (a, b) =>
+            c(a)(b)
+    )(
+        new Cache().callable(t1 =>
             new Cache().callable(t2 => final(t1, t2))
-        ))
+        )
+    )
 }
 
 const Negate = new Cache().callable(n => ({ type: 'Negate', value: n }))
 const Number = new Cache().callable(n => ({ type: 'Number', value: n }))
 const String = new Cache().callable(n => ({ type: 'String', value: n }))
-const Variable = multicache((nm, bi) => ({ type: 'Variable', value: nm, blockid: bi }))
+const Variable = multicache((nm, bi) => ({
+    type: 'Variable',
+    value: nm,
+    blockid: bi,
+}))
 const Add = multicache((left, right) => ({ type: 'Add', left, right }))
 const Sub = multicache((left, right) => ({ type: 'Sub', left, right }))
 const Eq = multicache((left, right) => ({ type: 'Eq', left, right }))
@@ -117,14 +127,14 @@ function sequenceBlocks(u) {
                 variableShadowTable.set(`${op.args[0]}`, e)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 const nam = `${op.args[1]}`
-                registerBindingTable.set(reg(op.args[0]),
-                    variableShadowTable.has(nam)
-                    ? variableShadowTable.get(nam)
-                    : Variable(nam, id))
+                registerBindingTable.set(
+                    reg(op.args[0]),
+                    variableShadowTable.has(nam) ? variableShadowTable.get(nam) : Variable(nam, id)
+                )
             } else if (op.op == _middlegen.Opcode.TargetOp && op.args[0] == 'print.ref') {
                 bmap.get(blk).push({ type: 'Print', expr: gexpr(op.args[1]) })
             } else if (op.op == _middlegen.Opcode.TargetOp && op.args[0] == 'print.direct') {
-                bmap.get(blk).push({ type: 'Print', expr: String(JSON.parse(op.args[1])) })
+                bmap.get(blk).push({ type: 'Print', expr: String(JSON.parse(`${op.args[1]}`)) })
             } else if (op.op == _middlegen.Opcode.BinOp && op.args[1] == 'add') {
                 registerBindingTable.set(reg(op.args[0]), Add(gexpr(op.args[2]), gexpr(op.args[3])))
             } else if (op.op == _middlegen.Opcode.End) {
@@ -138,8 +148,12 @@ function sequenceBlocks(u) {
             bmap.get(blk).push({ type: 'GlobalSynchronizationBarrier', glb: nam, expr: et })
             knownGlobals.add(nam)
         }
-        if (blk.cond == _middlegen.JumpCond.Always && blocks[id+1] != blk.targets[0]) {
-            bmap.get(blk).push({ type: 'Condbr', cond: Number(1), target: blocks.indexOf(blk.targets[0]) })
+        if (blk.cond == _middlegen.JumpCond.Always && blocks[id + 1] != blk.targets[0]) {
+            bmap.get(blk).push({
+                type: 'Condbr',
+                cond: Number(1),
+                target: blocks.indexOf(blk.targets[0]),
+            })
         }
     }
     console.log('digraph PRGControlFlowTrace {')
@@ -150,19 +164,22 @@ function sequenceBlocks(u) {
     id = -1
     for (const blk of bmap.values()) {
         id++
-        const label = ['<start>entry', ...blk.map((e, i) => {
-            let output = 'idk'
-            if (e.type == 'CallResultUser') output = 'CallResultUser'
-            if (e.type == 'Print') output = 'Print'
-            if (e.type == 'PrintFlush') output = 'PrintFlush'
-            if (e.type == 'GlobalSynchronizationBarrier') {
-                return `{<gsb${i}>out ${e.glb}|<op${i}>in}`
-            }
-            if (e.type == 'Condbr') output = `Condbr ${e.target}`
-            if (e.type == 'ControlFlowExit') output = 'ControlFlowExit'
-            return `<op${i}>${output}`
-
-        }), '<end>exit'].join('|')
+        const label = [
+            '<start>entry',
+            ...blk.map((e, i) => {
+                let output = 'idk'
+                if (e.type == 'CallResultUser') output = 'CallResultUser'
+                if (e.type == 'Print') output = 'Print'
+                if (e.type == 'PrintFlush') output = 'PrintFlush'
+                if (e.type == 'GlobalSynchronizationBarrier') {
+                    return `{<gsb${i}>out ${e.glb}|<op${i}>in}`
+                }
+                if (e.type == 'Condbr') output = `Condbr ${e.target}`
+                if (e.type == 'ControlFlowExit') output = 'ControlFlowExit'
+                return `<op${i}>${output}`
+            }),
+            '<end>exit',
+        ].join('|')
         console.log(`    block${id} [label="${label}",shape=record]`)
     }
     const graphedExpressions = new Map()
@@ -171,10 +188,13 @@ function sequenceBlocks(u) {
         if (!graphedExpressions.has(e)) {
             let id = `ge_${idgen++}`
             if (e.type == 'Number') console.log(`    ${id} [label="*${e.value}*"]`)
-            if (e.type == 'String') console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
+            if (e.type == 'String')
+                console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
             if (e.type == 'Variable') id = `g_${e.value}`
             if (e.type == 'Add') {
-                console.log(`    ${id} [label="Add",shape=record,label="<res>Add|<left>A|<right>B"]`)
+                console.log(
+                    `    ${id} [label="Add",shape=record,label="<res>Add|<left>A|<right>B"]`
+                )
                 graphExpression(`${id}:left`, e.left)
                 graphExpression(`${id}:right`, e.right)
                 id = `${id}:res`
@@ -197,8 +217,7 @@ function sequenceBlocks(u) {
             }
             if (e.type == 'Condbr') graphExpression(target, e.cond)
         })
-        console.log(`    block${id}:end -> block${id+1}:start`)
+        console.log(`    block${id}:end -> block${id + 1}:start`)
     }
     console.log('}')
 } exports.buildProgram = buildProgram;
-
