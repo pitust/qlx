@@ -86,10 +86,10 @@ function continueBlockCheck(
     checkedBlocks.get(block)!.add(check)
     if (!checked) return
     const ltypes = new Map(entryTypes.entries())
-    for (const op of block.ops) {
+    l: for (const op of block.ops) {
         switch (op.op) {
             case Opcode.End:
-                return
+                break l
             case Opcode.TypeGlob:
                 if (gTy.has(<string>op.args[0])) {
                     if (!sameType(gTy.get(<string>op.args[0]), <Type>op.args[1])) {
@@ -272,6 +272,7 @@ function continueBlockCheck(
                 const opTypes = {
                     equal: PrimitiveType.Bool,
                     notEqual: PrimitiveType.Bool,
+                    lessThan: PrimitiveType.Bool,
                     add: PrimitiveType.Float,
                     sub: PrimitiveType.Float,
                 }

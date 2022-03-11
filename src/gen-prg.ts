@@ -14,6 +14,7 @@ type expr =
     | { type: 'String'; value: string }
     | { type: 'Variable'; value: string; blockid: number }
     | { type: 'Call'; args: expr[] }
+    | { type: 'LT'; left: expr; right: expr }
     | { type: 'Add'; left: expr; right: expr }
     | { type: 'Sub'; left: expr; right: expr }
     | { type: 'Eq'; left: expr; right: expr }
@@ -62,6 +63,7 @@ const Variable = multicache<string, number, expr>((nm, bi) => ({
     value: nm,
     blockid: bi,
 }))
+const LT = multicache<expr, expr, expr>((left, right) => ({ type: 'LT', left, right }))
 const Add = multicache<expr, expr, expr>((left, right) => ({ type: 'Add', left, right }))
 const Sub = multicache<expr, expr, expr>((left, right) => ({ type: 'Sub', left, right }))
 const Eq = multicache<expr, expr, expr>((left, right) => ({ type: 'Eq', left, right }))
@@ -91,6 +93,82 @@ function sequenceBlocks(u: SSAUnit) {
     return order
 }
 
+function emitGraph(knownGlobals: Set<string>, blks: block[]) {
+    console.log('digraph PRGControlFlowTrace {')
+    console.log('    node [fontname="Handlee"];')
+    console.log('    rankdir=LR;')
+    const rexpr: string[] = []
+    for (const g of knownGlobals) {
+        console.log(`    g_${g} [label="*${g}*"]`)
+    }
+    let id = -1
+    for (const blk of blks) {
+        id++
+        const label = [
+            '<start>entry',
+            ...blk.map((e, i) => {
+                let output = 'idk'
+                if (e.type == 'CallResultUser') output = 'CallResultUser'
+                if (e.type == 'Print') output = 'Print'
+                if (e.type == 'PrintFlush') output = 'PrintFlush'
+                if (e.type == 'GlobalSynchronizationBarrier') {
+                    return `<op${i}>var ${e.glb}`
+                }
+                if (e.type == 'Condbr') output = `Condbr`
+                if (e.type == 'ControlFlowExit') output = 'ControlFlowExit'
+                return `<op${i}>${output}`
+            }),
+            '<end>exit',
+        ].join('|')
+        rexpr.push(`    block${id} [label="${label}",shape=record]`)
+    }
+    const graphedExpressions = new Map<expr, string>()
+    let idgen = 0
+    function graphExpression(src: string, e: expr) {
+        if (!graphedExpressions.has(e)) {
+            let id = `ge_${idgen++}`
+            if (e.type == 'Number') console.log(`    ${id} [label="*${e.value}*"]`)
+            if (e.type == 'String')
+                console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
+            if (e.type == 'Variable') id = `g_${e.value}`
+            if (e.type == 'Add' || e.type == 'LT') {
+                console.log(`    ${id} [shape=record,label="<left>A|<res>${e.type}|<right>B"]`)
+                graphExpression(`${id}:left`, e.left)
+                graphExpression(`${id}:right`, e.right)
+                id = `${id}:res`
+            }
+            if (e.type == 'Negate') {
+                console.log(`    ${id} [label="Negate",shape=record,label="Negate"]`)
+                graphExpression(`${id}`, e.value)
+            }
+            graphedExpressions.set(e, id)
+        }
+        if (src.startsWith('block'))
+            rexpr.push(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
+        else console.log(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
+    }
+    id = -1
+    for (const blk of blks) {
+        id++
+        blk.forEach((e, i) => {
+            const target = `block${id}:op${i}`
+            if (e.type == 'CallResultUser') graphExpression(target, e.expr)
+            if (e.type == 'Print') graphExpression(target, e.expr)
+            if (e.type == 'PrintFlush') graphExpression(target, e.expr)
+            if (e.type == 'GlobalSynchronizationBarrier') {
+                graphExpression(target, e.expr)
+                rexpr.push(`    block${id}:op${i} -> g_${e.glb}[weight=500]`)
+            }
+            if (e.type == 'Condbr') {
+                graphExpression(target, e.cond)
+                rexpr.push(`    block${id}:op${i} -> block${e.target}:start [weight=1]`)
+            }
+        })
+        rexpr.push(`    block${id}:end -> block${id + 1}:start [weight=10]`)
+    }
+    for (const r of rexpr) console.log(r)
+    console.log('}')
+}
 export function buildProgram(o: SSAUnit): program {
     const blocks = sequenceBlocks(o)
     const bmap = new Map<SSABlock, block>()
@@ -100,7 +178,7 @@ export function buildProgram(o: SSAUnit): program {
     let id = -1
     dumpSSA(o, blocks)
     const registerBindingTable = new Map<number, expr>()
-    const knownGlobals = new Set<String>()
+    const knownGlobals = new Set<string>()
     for (const blk of blocks) {
         id++
         // if a variable is stored to within this block, the appropriate entry is set
@@ -137,16 +215,19 @@ export function buildProgram(o: SSAUnit): program {
                 bmap.get(blk).push({ type: 'Print', expr: String(JSON.parse(`${op.args[1]}`)) })
             } else if (op.op == Opcode.BinOp && op.args[1] == 'add') {
                 registerBindingTable.set(reg(op.args[0]), Add(gexpr(op.args[2]), gexpr(op.args[3])))
+            } else if (op.op == Opcode.BinOp && op.args[1] == 'lessThan') {
+                registerBindingTable.set(reg(op.args[0]), LT(gexpr(op.args[2]), gexpr(op.args[3])))
             } else if (op.op == Opcode.End) {
                 bmap.get(blk).push({ type: 'ControlFlowExit' })
             } else {
                 _fatal(`idk op ${Opcode[op.op]}`)
             }
         }
-        // todo: decide on branch placement here
         for (const [nam, et] of variableShadowTable) {
+            if (et.type == 'Variable' && et.value == nam) continue
             bmap.get(blk).push({ type: 'GlobalSynchronizationBarrier', glb: nam, expr: et })
             knownGlobals.add(nam)
+            variableShadowTable.clear()
         }
         if (blk.cond == JumpCond.Always && blocks[id + 1] != blk.targets[0]) {
             bmap.get(blk).push({
@@ -155,69 +236,22 @@ export function buildProgram(o: SSAUnit): program {
                 target: blocks.indexOf(blk.targets[0]),
             })
         }
-    }
-    console.log('digraph PRGControlFlowTrace {')
-    console.log('    node [fontname="Handlee"];')
-    for (const g of knownGlobals) {
-        console.log(`    g_${g} [label="*${g}*"]`)
-    }
-    id = -1
-    for (const blk of bmap.values()) {
-        id++
-        const label = [
-            '<start>entry',
-            ...blk.map((e, i) => {
-                let output = 'idk'
-                if (e.type == 'CallResultUser') output = 'CallResultUser'
-                if (e.type == 'Print') output = 'Print'
-                if (e.type == 'PrintFlush') output = 'PrintFlush'
-                if (e.type == 'GlobalSynchronizationBarrier') {
-                    return `{<gsb${i}>out ${e.glb}|<op${i}>in}`
-                }
-                if (e.type == 'Condbr') output = `Condbr ${e.target}`
-                if (e.type == 'ControlFlowExit') output = 'ControlFlowExit'
-                return `<op${i}>${output}`
-            }),
-            '<end>exit',
-        ].join('|')
-        console.log(`    block${id} [label="${label}",shape=record]`)
-    }
-    const graphedExpressions = new Map<expr, string>()
-    let idgen = 0
-    function graphExpression(src: string, e: expr) {
-        if (!graphedExpressions.has(e)) {
-            let id = `ge_${idgen++}`
-            if (e.type == 'Number') console.log(`    ${id} [label="*${e.value}*"]`)
-            if (e.type == 'String')
-                console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
-            if (e.type == 'Variable') id = `g_${e.value}`
-            if (e.type == 'Add') {
-                console.log(
-                    `    ${id} [label="Add",shape=record,label="<res>Add|<left>A|<right>B"]`
-                )
-                graphExpression(`${id}:left`, e.left)
-                graphExpression(`${id}:right`, e.right)
-                id = `${id}:res`
+        if (blk.cond == JumpCond.TestBoolean) {
+            if (blocks[id + 1] != blk.targets[0]) {
+                bmap.get(blk).push({
+                    type: 'Condbr',
+                    cond: gexpr(blk.condargs[0]),
+                    target: blocks.indexOf(blk.targets[0]),
+                })
             }
-            graphedExpressions.set(e, id)
+            if (blocks[id + 1] != blk.targets[1]) {
+                bmap.get(blk).push({
+                    type: 'Condbr',
+                    cond: Negate(gexpr(blk.condargs[0])),
+                    target: blocks.indexOf(blk.targets[1]),
+                })
+            }
         }
-        console.log(`    ${graphedExpressions.get(e)} -> ${src}`)
     }
-    id = -1
-    for (const blk of bmap.values()) {
-        id++
-        blk.forEach((e, i) => {
-            const target = `block${id}:op${i}`
-            if (e.type == 'CallResultUser') graphExpression(target, e.expr)
-            if (e.type == 'Print') graphExpression(target, e.expr)
-            if (e.type == 'PrintFlush') graphExpression(target, e.expr)
-            if (e.type == 'GlobalSynchronizationBarrier') {
-                graphExpression(target, e.expr)
-                console.log(`    block${id}:gsb${i} -> g_${e.glb}`)
-            }
-            if (e.type == 'Condbr') graphExpression(target, e.cond)
-        })
-        console.log(`    block${id}:end -> block${id + 1}:start`)
-    }
-    console.log('}')
+    emitGraph(knownGlobals, [...bmap.values()])
 }

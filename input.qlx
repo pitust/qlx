@@ -1,16 +1,7 @@
-struct struc do
-  foo: float
-  bar: float
+
+let i = 0
+while < i 100 do
+  printf "i: {}" i
+  i = + 1 i
 end
 
-fn lel { arg: struc } -> void
-  set{ arg .foo } = 69
-  printf "arg.foo: {}" arg
-end
-
-let f = new struc
-set{ f .foo } = 69
-set{ f .bar } = 420
-
-lel/1 f
-printflush @message1

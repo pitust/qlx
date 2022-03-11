@@ -52,7 +52,7 @@ var _middlegen = require('./middlegen');
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StLoc) {
+            } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob || op.op == _middlegen.Opcode.StLoc) {
                 const dst = `${op.args[0]}:`
                 const src = (op.args[1]).reg
                 if (!types.has(src)) continue

@@ -52,7 +52,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            } else if (op.op == Opcode.StGlob || op.op == Opcode.StLoc) {
+            } else if (op.op == Opcode.StGlob || op.op == Opcode.StInitGlob || op.op == Opcode.StLoc) {
                 const dst = `${op.args[0]}:`
                 const src = (<{ reg: number }>op.args[1]).reg
                 if (!types.has(src)) continue

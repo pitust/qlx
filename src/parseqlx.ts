@@ -394,6 +394,7 @@ function parseword(): ast {
         if (code[0].lexeme == '/') return code.shift(), parsebinop('div')
         if (code[0].lexeme == '==') return code.shift(), parsebinop('equal')
         if (code[0].lexeme == '>=') return code.shift(), parsebinop('greaterThanEq')
+        if (code[0].lexeme == '<') return code.shift(), parsebinop('lessThan')
         if (code[0].lexeme == '!=') return code.shift(), parsebinop('notEqual')
         if (code[0].lexeme[0] == '"') return new ast('blox', [code.shift().lexeme!])
         if (
