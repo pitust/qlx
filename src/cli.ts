@@ -5,6 +5,7 @@ import { generateCode } from './codegen'
 import { readFileSync, writeFileSync } from 'fs'
 import { compileCode } from './qlxemit'
 import { Options } from './options'
+import { buildProgram } from './gen-prg'
 
 export function onCLIParseComplete(o: Options, input: string, output: string | null) {
     Object.assign(options, o)
@@ -33,7 +34,8 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
             console.log('fatal error: type check failed; exiting')
             process.exit(1)
         }
-        generateCode(u, writeCode)
+        buildProgram(u[0])
+        // generateCode(u, writeCode)
     } else {
         compileCode(input, writeCode)
     }

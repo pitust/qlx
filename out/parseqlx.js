@@ -200,13 +200,13 @@ function parseprintf() {
     }
     const fmt = w.slice(1, -1)
     const segments = fmt.split('{}')
-    const ops = [$.print(new ast('blox', [`"${segments[0]}"`]))]
+    const ops = segments[0].length ? [$.print(new ast('blox', [`"${segments[0]}"`]))] : []
     for (let i = 1; i < segments.length; i++) {
         ops.push($.print(parseword()))
         if (segments[i] == '') continue
         ops.push($.print(new ast('blox', [`"${segments[i]}"`])))
     }
-    return $.block(ops)
+    return ops.length == 1 ? ops[0] : $.block(ops)
 }
 function parseprintflush() {
     return $.printflush(parseword())

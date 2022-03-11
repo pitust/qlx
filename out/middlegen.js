@@ -2,6 +2,7 @@
 var _assert = require('assert'); var _assert2 = _interopRequireDefault(_assert);
 var _fs = require('fs');
 var _parseqlx = require('./parseqlx');
+var _dumpast = require('./dumpast');
 function isast(t) {}
 function isstr(t) {}
 function theast(t) {
@@ -619,7 +620,9 @@ function doGenerateSSA(node, ctx) {
             blocks: ctx.blocks,
         }
     }
-    const root = generateUnit(true, '_init', _parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, file).toString()))
+    const ast = _parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, file).toString())
+    if (exports.options.dump_ast) _dumpast.dumpAstNode.call(void 0, ast)
+    const root = generateUnit(true, '_init', ast)
     const cu = new Map()
     for (const n of functionGenerationQueue) {
         const name = thestr(n.children[0])

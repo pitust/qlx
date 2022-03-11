@@ -1,10 +1,11 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true});
 var _typechk = require('./typechk');
 var _middlegen = require('./middlegen');
-var _codegen = require('./codegen');
+
 var _fs = require('fs');
 var _qlxemit = require('./qlxemit');
 
+var _genprg = require('./gen-prg');
 
  function onCLIParseComplete(o, input, output) {
     Object.assign(_middlegen.options, o)
@@ -33,7 +34,8 @@ var _qlxemit = require('./qlxemit');
             console.log('fatal error: type check failed; exiting')
             process.exit(1)
         }
-        _codegen.generateCode.call(void 0, u, writeCode)
+        _genprg.buildProgram.call(void 0, u[0])
+        // generateCode(u, writeCode)
     } else {
         _qlxemit.compileCode.call(void 0, input, writeCode)
     }

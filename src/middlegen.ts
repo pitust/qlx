@@ -2,6 +2,7 @@
 import assert from 'assert'
 import { readFileSync } from 'fs'
 import { ast, parseprogram } from './parseqlx'
+import { dumpAstNode } from './dumpast'
 function isast(t: ast | string): asserts t is ast {}
 function isstr(t: ast | string): asserts t is string {}
 function theast(t: ast | string): ast {
@@ -619,7 +620,9 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
             blocks: ctx.blocks,
         }
     }
-    const root = generateUnit(true, '_init', parseprogram(readFileSync(file).toString()))
+    const ast = parseprogram(readFileSync(file).toString())
+    if (options.dump_ast) dumpAstNode(ast)
+    const root = generateUnit(true, '_init', ast)
     const cu = new Map()
     for (const n of functionGenerationQueue) {
         const name = thestr(n.children[0])
