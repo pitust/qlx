@@ -220,7 +220,7 @@ function eliminateDeadCode(blocks) {
             findall(blocks, op => {
                 // fix a misoptimization in some structure cases
                 if (op.op == _middlegen.Opcode.StLoc && op.args[0] == tgd) return false
-                if (op.args.find(e => e && typeof e == 'object' && 'loc' in e && e.glob == tgd))
+                if (op.args.find(e => e && typeof e == 'object' && 'loc' in e && e.loc == tgd))
                     return true
                 if (op.op == _middlegen.Opcode.LdLoc) return op.args[1] == tgd
                 return false
