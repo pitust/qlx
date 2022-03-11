@@ -1,7 +1,8 @@
 
-let i = 0
+let i = + 3 4
+let j = + 4 5
 while < i 100 do
-  printf "i: {}" i
+  printf "some number: {}" + 9 60
   i = + 1 i
 end
 

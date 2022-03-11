@@ -1,4 +1,4 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true});// PRG, the pretty reasonable QLX codegen
+"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }// PRG, the pretty reasonable QLX codegen
 var _middlegen = require('./middlegen');
 
 function _fatal(er) {
@@ -99,7 +99,13 @@ function emitGraph(knownGlobals, blks) {
     console.log('    rankdir=LR;')
     const rexpr = []
     for (const g of knownGlobals) {
-        console.log(`    g_${g} [label="*${g}*"]`)
+        if (_middlegen.options.dump_prgDfgExpandvars) {
+            for (let i = 0; i < blks.length; i++) {
+                console.log(`    g_${g}_${i} [label="*${g} (${i})*"]`)
+            }
+        } else {
+            console.log(`    g_${g} [label="*${g}*"]`)
+        }
     }
     let id = -1
     for (const blk of blks) {
@@ -130,7 +136,13 @@ function emitGraph(knownGlobals, blks) {
             if (e.type == 'Number') console.log(`    ${id} [label="*${e.value}*"]`)
             if (e.type == 'String')
                 console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
-            if (e.type == 'Variable') id = `g_${e.value}`
+            if (e.type == 'Variable') {
+                if (_middlegen.options.dump_prgDfgExpandvars) {
+                    id = `g_${e.value}_${e.blockid}`
+                } else {
+                    id = `g_${e.value}`
+                }
+            }
             if (e.type == 'Add' || e.type == 'LT') {
                 console.log(`    ${id} [shape=record,label="<left>A|<res>${e.type}|<right>B"]`)
                 graphExpression(`${id}:left`, e.left)
@@ -157,7 +169,11 @@ function emitGraph(knownGlobals, blks) {
             if (e.type == 'PrintFlush') graphExpression(target, e.expr)
             if (e.type == 'GlobalSynchronizationBarrier') {
                 graphExpression(target, e.expr)
-                rexpr.push(`    block${id}:op${i} -> g_${e.glb}[weight=500]`)
+                if (_middlegen.options.dump_prgDfgExpandvars) {
+                    rexpr.push(`    block${id}:op${i} -> g_${e.glb}_${id}[weight=500]`)
+                } else {
+                    rexpr.push(`    block${id}:op${i} -> g_${e.glb}[weight=500]`)
+                }
             }
             if (e.type == 'Condbr') {
                 graphExpression(target, e.cond)
@@ -169,6 +185,44 @@ function emitGraph(knownGlobals, blks) {
     for (const r of rexpr) console.log(r)
     console.log('}')
 }
+function computeExpressionReferences(blkz) {
+    const reft = new Map()
+    for (const blk of blkz) {
+        for (const op of blk) {
+            function scanRefs(e) {
+                reft.set(e, 1 + (_nullishCoalesce(reft.get(e), () => ( 0))))
+                if (e.type == 'Number') return
+                if (e.type == 'String') return
+                if (e.type == 'Variable') return
+                if (e.type == 'Call') {
+                    e.args.forEach(scanRefs)
+                    return
+                }
+                if (
+                    e.type == 'LT' ||
+                    e.type == 'Add' ||
+                    e.type == 'Sub' ||
+                    e.type == 'Eq' ||
+                    e.type == 'NEq'
+                ) {
+                    scanRefs(e.left)
+                    scanRefs(e.right)
+                    return
+                }
+                if (e.type == 'Negate') {
+                    scanRefs(e.value)
+                    return
+                }
+            }
+            if (op.type == 'CallResultUser') scanRefs(op.expr)
+            if (op.type == 'Print') scanRefs(op.expr)
+            if (op.type == 'PrintFlush') scanRefs(op.expr)
+            if (op.type == 'GlobalSynchronizationBarrier') scanRefs(op.expr)
+            if (op.type == 'Condbr') scanRefs(op.cond)
+        }
+    }
+    return reft
+}
  function buildProgram(o) {
     const blocks = sequenceBlocks(o)
     const bmap = new Map()
@@ -176,9 +230,9 @@ function emitGraph(knownGlobals, blks) {
         bmap.set(blk, [])
     }
     let id = -1
-    _middlegen.dumpSSA.call(void 0, o, blocks)
     const registerBindingTable = new Map()
     const knownGlobals = new Set()
+    const conditionalBranchTargetSet = new Set()
     for (const blk of blocks) {
         id++
         // if a variable is stored to within this block, the appropriate entry is set
@@ -227,14 +281,15 @@ function emitGraph(knownGlobals, blks) {
             if (et.type == 'Variable' && et.value == nam) continue
             bmap.get(blk).push({ type: 'GlobalSynchronizationBarrier', glb: nam, expr: et })
             knownGlobals.add(nam)
-            variableShadowTable.clear()
         }
+        variableShadowTable.clear()
         if (blk.cond == _middlegen.JumpCond.Always && blocks[id + 1] != blk.targets[0]) {
             bmap.get(blk).push({
                 type: 'Condbr',
                 cond: Number(1),
                 target: blocks.indexOf(blk.targets[0]),
             })
+            conditionalBranchTargetSet.add(blocks.indexOf(blk.targets[0]))
         }
         if (blk.cond == _middlegen.JumpCond.TestBoolean) {
             if (blocks[id + 1] != blk.targets[0]) {
@@ -243,6 +298,7 @@ function emitGraph(knownGlobals, blks) {
                     cond: gexpr(blk.condargs[0]),
                     target: blocks.indexOf(blk.targets[0]),
                 })
+                conditionalBranchTargetSet.add(blocks.indexOf(blk.targets[0]))
             }
             if (blocks[id + 1] != blk.targets[1]) {
                 bmap.get(blk).push({
@@ -250,8 +306,101 @@ function emitGraph(knownGlobals, blks) {
                     cond: Negate(gexpr(blk.condargs[0])),
                     target: blocks.indexOf(blk.targets[1]),
                 })
+                conditionalBranchTargetSet.add(blocks.indexOf(blk.targets[1]))
             }
         }
     }
-    emitGraph(knownGlobals, [...bmap.values()])
+    if (_middlegen.options.dump_prgDfg) emitGraph(knownGlobals, [...bmap.values()])
+    const allrc = computeExpressionReferences([...bmap.values()])
+    const completed = new Map()
+
+    const tg = (
+        ti => () =>
+            `t.${ti++}`
+    )(1)
+    let watermark = 0
+    function computeLive() {
+        let madeProgress = false
+        do {
+            madeProgress = false
+            for (const [e] of allrc) {
+                if (completed.has(e)) continue
+                // | { type: 'Number'; value: number }
+                if (e.type == 'Number') {
+                    completed.set(e, `${e.value}`)
+                    madeProgress = true
+                    continue
+                }
+                if (e.type == 'String') {
+                    completed.set(e, `${JSON.stringify(e.value)}`)
+                    madeProgress = true
+                    continue
+                }
+                if (e.type == 'Variable') {
+                    if (e.blockid != watermark) continue
+                    completed.set(e, `v.${e.value}`)
+                    madeProgress = true
+                    continue
+                }
+                if (e.type == 'Negate') {
+                    if (!completed.has(e.value)) continue
+                    const name = tg()
+                    console.log(` op equal ${name} 0 ${completed.get(e.value)}`)
+                    completed.set(e, name)
+                    madeProgress = true
+                    continue
+                }
+                if (e.type == 'LT' || e.type == 'Add') {
+                    if (!completed.has(e.left)) continue
+                    if (!completed.has(e.right)) continue
+                    const name = tg()
+                    const names = {
+                        LT: 'lessThan',
+                        Add: 'add',
+                    } 
+                    console.log(
+                        ` op ${names[e.type]} ${name} ${completed.get(e.left)} ${completed.get(
+                            e.right
+                        )}`
+                    )
+                    completed.set(e, name)
+                    madeProgress = true
+                    continue
+                }
+                _fatal('todo type ' + e.type)
+            }
+        } while (madeProgress)
+    }
+
+    computeLive()
+
+    watermark = -1
+    for (const blk of bmap.values()) {
+        watermark++
+        if (conditionalBranchTargetSet.has(watermark)) console.log(`b.${watermark}:`)
+        computeLive()
+        function getex(e) {
+            if (!completed.has(e))
+                _fatal('uncompleted expression cannot be passed to getex (bad mgen/gen-prg)')
+            return completed.get(e)
+        }
+
+        for (const op of blk) {
+            if (op.type == 'Print') {
+                console.log(` print ${getex(op.expr)}`)
+            }
+            if (op.type == 'PrintFlush') {
+                console.log(` printflush ${getex(op.expr)}`)
+            }
+            if (op.type == 'GlobalSynchronizationBarrier') {
+                console.log(` set v.${op.glb} ${getex(op.expr)}`)
+            }
+            if (op.type == 'Condbr') {
+                console.log(` jump b.${op.target} notEqual 0 ${getex(op.cond)}`)
+            }
+            if (op.type == 'ControlFlowExit') {
+                console.log(` end`)
+            }
+        }
+    }
 } exports.buildProgram = buildProgram;

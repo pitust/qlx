@@ -1,9 +1,7 @@
-import { checkForMixin, loadPlugin } from './plugins'
 import { checkAllTypes } from './typechk'
 import { generateSSA, options, dumpSSA } from './middlegen'
 import { generateCode } from './codegen'
-import { readFileSync, writeFileSync } from 'fs'
-import { compileCode } from './qlxemit'
+import { writeFileSync } from 'fs'
 import { Options } from './options'
 import { buildProgram } from './gen-prg'
 
@@ -24,21 +22,18 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         options.max = true
     }
     const writeCode = (code: string) => (output ? writeFileSync(output, code) : console.log(code))
-    if (options.ssa) {
-        const u = generateSSA(input)
-        if (options.dump_freshSsa) {
-            dumpSSA(u[0])
-            for (const [, p] of u[1]) dumpSSA(p)
-        }
-        if (!checkAllTypes(u)) {
-            console.log('fatal error: type check failed; exiting')
-            process.exit(1)
-        }
-        buildProgram(u[0])
-        // generateCode(u, writeCode)
-    } else {
-        compileCode(input, writeCode)
+    const u = generateSSA(input)
+    if (options.dump_freshSsa) {
+        dumpSSA(u[0])
+        for (const [, p] of u[1]) dumpSSA(p)
     }
+    if (!checkAllTypes(u)) {
+        console.log('fatal error: type check failed; exiting')
+        process.exit(1)
+    }
+    if (options.prg) buildProgram(u[0])
+    else generateCode(u, writeCode)
+    // goodbye, qlxemit
+    // it was not that bad
+    //     compileCode(input, writeCode)
 }
-// if (out) compileCode(inp, out)
-// else compileCode(inp)

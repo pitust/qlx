@@ -5,6 +5,8 @@ export interface Options {
     constProp: boolean
     dump_ast: boolean
     dump_freshSsa: boolean
+    dump_prgDfg: boolean
+    dump_prgDfgExpandvars: boolean
     dump_ssaPreEmit: boolean
     dump_ssaPreOpt: boolean
     eliminateBranches: boolean
@@ -17,8 +19,8 @@ export interface Options {
     mergePrint: boolean
     noEnd: boolean
     noSafeAbort: boolean
+    prg: boolean
     rawArgRefs: boolean
     reorderBlocks: boolean
-    ssa: boolean
     stripComments: boolean
 }
