@@ -16,6 +16,7 @@ options = {
     'reorder-blocks': 'use weighted block reordering, rather than sequential block order',
     'strip-comments': 'strip comments from the output to save on lines',
     
+    'gen2': 'Enable WIP gen2 code generation, in preparation for machine code',
     'prg': 'Enable experimental less-optimizing prg codegen (pretty reasonable codegen)',
 
     'dump=ast': 'dump AST',

@@ -12,6 +12,7 @@ export interface Options {
     eliminateBranches: boolean
     eliminateDeadCode: boolean
     forward: boolean
+    gen2: boolean
     inline: boolean
     interleaveSsa: boolean
     max: boolean

@@ -13,6 +13,7 @@ const options = {
     eliminateBranches: false,
     eliminateDeadCode: false,
     forward: false,
+    gen2: false,
     inline: false,
     interleaveSsa: false,
     max: false,
@@ -56,6 +57,7 @@ for (let arg of process.argv.slice(2)) {
     else if (arg == '-feliminate-branches') options.eliminateBranches = true; 
     else if (arg == '-feliminate-dead-code') options.eliminateDeadCode = true; 
     else if (arg == '-fforward') options.forward = true; 
+    else if (arg == '-fgen2') options.gen2 = true; 
     else if (arg == '-finline') options.inline = true; 
     else if (arg == '-finterleave-ssa') options.interleaveSsa = true; 
     else if (arg == '-fmax') options.max = true; 
@@ -89,6 +91,7 @@ function _printHelpMessage() {
     console.log("    -feliminate-branches        - eliminate branches in cases where fallthrough is enough");
     console.log("    -feliminate-dead-code       - eliminate some dead instructions.");
     console.log("    -fforward                   - forward moves when used once");
+    console.log("    -fgen2                      - Enable WIP gen2 code generation, in preparation for machine code");
     console.log("    -finline                    - inline small functions");
     console.log("                                  \x1b[1mNeeds\x1b[0m -fraw-arg-refs");
     console.log("    -finterleave-ssa            - interlave code and SSA opcodes");

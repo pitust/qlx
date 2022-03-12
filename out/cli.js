@@ -1,6 +1,7 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true});var _typechk = require('./typechk');
 var _middlegen = require('./middlegen');
 var _codegen = require('./codegen');
+var _codegen22 = require('./codegen2');
 var _fs = require('fs');
 
 var _genprg = require('./gen-prg');
@@ -32,6 +33,7 @@ var _genprg = require('./gen-prg');
         process.exit(1)
     }
     if (_middlegen.options.prg) _genprg.buildProgram.call(void 0, u[0])
+    else if (_middlegen.options.gen2) _codegen22.generateCode.call(void 0, u, writeCode)
     else _codegen.generateCode.call(void 0, u, writeCode)
     // goodbye, qlxemit
     // it was not that bad

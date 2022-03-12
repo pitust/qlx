@@ -1,6 +1,7 @@
 import { checkAllTypes } from './typechk'
 import { generateSSA, options, dumpSSA } from './middlegen'
 import { generateCode } from './codegen'
+import { generateCode as gen2_generateCode } from './codegen2'
 import { writeFileSync } from 'fs'
 import { Options } from './options'
 import { buildProgram } from './gen-prg'
@@ -32,6 +33,7 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         process.exit(1)
     }
     if (options.prg) buildProgram(u[0])
+    else if (options.gen2) gen2_generateCode(u, writeCode)
     else generateCode(u, writeCode)
     // goodbye, qlxemit
     // it was not that bad
