@@ -18,7 +18,9 @@ var _middlegen = require('./middlegen');
 
 
 var _optimizer = require('./optimizer');
-var _targen = require('./target/targen');
+var _api = require('./target/api');
+var _common = require('./target/common');
+
 
 const refcounts = new Map()
 const optimizedFunctionBlocks = new Map()
@@ -26,7 +28,7 @@ const inliningCost = new Map()
 const inliningCounterCost = new Map()
 const functionCallReferenceSet = new Set()
 function generateUnit(mod, fn, unit, writeCode) {
-    const program = _targen.createProgram.call(void 0, )
+    const program = _api.createProgram.call(void 0, )
     function immref(arg) {
         if (typeof arg == 'number') return program.imm(arg)
         if (typeof arg == 'string') return program.stri(arg)
@@ -120,7 +122,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                         add: 'add',
                     } )
                 )
-                if (!mappings.has(nam)) _targen.ice.call(void 0, `todo: binop ${nam}`)
+                if (!mappings.has(nam)) _common.ice.call(void 0, `todo: binop ${nam}`)
                 program.binop(
                     immref(op.args[0]),
                     immref(op.args[2]),
@@ -132,7 +134,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                 if (top == 'print.direct') {
                     program.platformHookPrintString(JSON.parse(`${op.args[1]}`))
                 } else {
-                    _targen.ice.call(void 0, `todo: targetop ${top}`)
+                    _common.ice.call(void 0, `todo: targetop ${top}`)
                 }
                 // const ops = {
                 //     'print.direct': () => `${fmt.rawio}print ${ri}${op.args[1]}${nostyle}`,
@@ -221,7 +223,7 @@ function generateUnit(mod, fn, unit, writeCode) {
         } else if (blk.cond == _middlegen.JumpCond.Abort) {
             // its fine they are unchecked aborts, stop whining
         } else {
-            _targen.ice.call(void 0, `todo: cond ${_middlegen.JumpCond[blk.cond]}`)
+            _common.ice.call(void 0, `todo: cond ${_middlegen.JumpCond[blk.cond]}`)
         }
     }
     writeCode(program.generate())

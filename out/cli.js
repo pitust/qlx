@@ -32,7 +32,7 @@ var _genprg = require('./gen-prg');
         console.log('fatal error: type check failed; exiting')
         process.exit(1)
     }
-    if (_middlegen.options.prg) _genprg.buildProgram.call(void 0, u[0])
+    if (_middlegen.options.prg) _genprg.buildProgram.call(void 0, u)
     else if (_middlegen.options.gen2) _codegen22.generateCode.call(void 0, u, writeCode)
     else _codegen.generateCode.call(void 0, u, writeCode)
     // goodbye, qlxemit

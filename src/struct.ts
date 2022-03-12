@@ -52,7 +52,11 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            } else if (op.op == Opcode.StGlob || op.op == Opcode.StInitGlob || op.op == Opcode.StLoc) {
+            } else if (
+                op.op == Opcode.StGlob ||
+                op.op == Opcode.StInitGlob ||
+                op.op == Opcode.StLoc
+            ) {
                 const dst = `${op.args[0]}:`
                 const src = (<{ reg: number }>op.args[1]).reg
                 if (!types.has(src)) continue
@@ -137,7 +141,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                         op: Opcode.TargetOp,
                         args: ['print.direct', JSON.stringify(c)],
                         pos: op.pos,
-                        meta: op.meta
+                        meta: op.meta,
                     })
                 }
                 function emitrprint(r: OpArg) {
@@ -145,7 +149,7 @@ export function performStructureExpansion(blocks: Set<SSABlock>, types: Map<numb
                         op: Opcode.TargetOp,
                         args: ['print.ref', r],
                         pos: op.pos,
-                        meta: op.meta
+                        meta: op.meta,
                     })
                 }
                 let state = 0

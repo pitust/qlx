@@ -105,7 +105,8 @@ interface SSAGenCtx {
     glob: Set<string>
 }
 export const getreg = (
-    i => () => i++
+    i => () =>
+        i++
 )(1)
 function construct(ctx: SSAGenCtx, type: Type): OpArg {
     if (typeof type == 'object') {
@@ -248,6 +249,7 @@ function ssablk(): SSABlock {
     }
 }
 const functionGenerationQueue = new Set<ast>()
+const argumentBindingLookback = new WeakMap<SSABlock, SSABlock>()
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     function pushOp(op: SSAOp) {
         ctx.currentBlock.ops.push(op)
@@ -470,12 +472,28 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         const idx = +thestr(idx_)
         const [nm_, typ] = theast(c0).children
         const nm = thestr(nm_)
-        pushOp({
-            meta,
-            pos: node.pos,
-            op: Opcode.BindArgument,
-            args: [nm, idx, doGenerateType(theast(typ))],
-        })
+        if (argumentBindingLookback.has(ctx.currentBlock)) {
+            argumentBindingLookback.get(ctx.currentBlock).ops.push({
+                meta,
+                pos: node.pos,
+                op: Opcode.BindArgument,
+                args: [nm, idx, doGenerateType(theast(typ))],
+            })
+        } else {
+            ctx.currentBlock.ops.push({
+                meta,
+                pos: node.pos,
+                op: Opcode.BindArgument,
+                args: [nm, idx, doGenerateType(theast(typ))],
+            })
+            const next = ssablk()
+            ctx.currentBlock.cond = JumpCond.AlwaysNoMerge
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [next]
+            argumentBindingLookback.set(next, ctx.currentBlock)
+            ctx.currentBlock = next
+            ctx.blocks.add(next)
+        }
         return
     }
     if (node.type == 'returnnode') {
@@ -563,7 +581,7 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
     for (const block of unit.blocks) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
-    for (const block of (b??[])) {
+    for (const block of b ?? []) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
     for (const block of unit.blocks) {

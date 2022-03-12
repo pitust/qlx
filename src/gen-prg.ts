@@ -1,5 +1,7 @@
 // PRG, the pretty reasonable QLX codegen
 import { SSAUnit, SSABlock, SSAOp, dumpSSA, Opcode, OpArg, JumpCond, options } from './middlegen'
+import { createProgram } from './target/api'
+import { name, Program } from './target/targen'
 
 function _fatal(er): never {
     console.log('fatal:', er)
@@ -13,21 +15,24 @@ type expr =
     | { type: 'Number'; value: number }
     | { type: 'String'; value: string }
     | { type: 'Variable'; value: string; blockid: number }
-    | { type: 'Call'; args: expr[] }
     | { type: 'LT'; left: expr; right: expr }
     | { type: 'Add'; left: expr; right: expr }
     | { type: 'Sub'; left: expr; right: expr }
     | { type: 'Eq'; left: expr; right: expr }
     | { type: 'NEq'; left: expr; right: expr }
     | { type: 'Negate'; value: expr }
+    | { type: 'CallSynchronisationBarrier'; target: string; args: expr[] }
 
 type op =
-    | { type: 'CallResultUser'; expr: expr }
     | { type: 'Print'; expr: expr }
     | { type: 'PrintFlush'; expr: expr }
     | { type: 'GlobalSynchronizationBarrier'; glb: string; expr: expr }
     | { type: 'Condbr'; cond: expr; target: number }
     | { type: 'ControlFlowExit' }
+    | { type: 'ControlFlowReturn' }
+    | { type: 'CallSynchronisationBarrier'; target: string; args: expr[] }
+    | { type: 'ArgumentStorageBarrier'; index: number; variable: string }
+    | { type: 'ReturnValueBarrier'; value: expr }
 
 class Cache<T, U> {
     _cache = new Map<T, U>()
@@ -101,36 +106,16 @@ function emitGraph(knownGlobals: Set<string>, blks: block[]) {
     for (const g of knownGlobals) {
         if (options.dump_prgDfgExpandvars) {
             for (let i = 0; i < blks.length; i++) {
-                console.log(`    g_${g}_${i} [label="*${g} (${i})*"]`)
+                console.log(`    "g_${g}_${i}" [label="*${g} (${i})*"]`)
             }
         } else {
-            console.log(`    g_${g} [label="*${g}*"]`)
+            console.log(`    "g_${g}" [label="*${g}*"]`)
         }
     }
     let id = -1
-    for (const blk of blks) {
-        id++
-        const label = [
-            '<start>entry',
-            ...blk.map((e, i) => {
-                let output = 'idk'
-                if (e.type == 'CallResultUser') output = 'CallResultUser'
-                if (e.type == 'Print') output = 'Print'
-                if (e.type == 'PrintFlush') output = 'PrintFlush'
-                if (e.type == 'GlobalSynchronizationBarrier') {
-                    return `<op${i}>var ${e.glb}`
-                }
-                if (e.type == 'Condbr') output = `Condbr`
-                if (e.type == 'ControlFlowExit') output = 'ControlFlowExit'
-                return `<op${i}>${output}`
-            }),
-            '<end>exit',
-        ].join('|')
-        rexpr.push(`    block${id} [label="${label}",shape=record]`)
-    }
     const graphedExpressions = new Map<expr, string>()
     let idgen = 0
-    function graphExpression(src: string, e: expr) {
+    function graphExpression(src: string, e: expr, isInvertedPointer: boolean = false) {
         if (!graphedExpressions.has(e)) {
             let id = `ge_${idgen++}`
             if (e.type == 'Number') console.log(`    ${id} [label="*${e.value}*"]`)
@@ -138,9 +123,9 @@ function emitGraph(knownGlobals: Set<string>, blks: block[]) {
                 console.log(`    ${id} [label="*${e.value.replaceAll('\n', '\\\\n')}*"]`)
             if (e.type == 'Variable') {
                 if (options.dump_prgDfgExpandvars) {
-                    id = `g_${e.value}_${e.blockid}`
+                    id = `"g_${e.value}_${e.blockid}"`
                 } else {
-                    id = `g_${e.value}`
+                    id = `"g_${e.value}"`
                 }
             }
             if (e.type == 'Add' || e.type == 'LT') {
@@ -153,34 +138,91 @@ function emitGraph(knownGlobals: Set<string>, blks: block[]) {
                 console.log(`    ${id} [label="Negate",shape=record,label="Negate"]`)
                 graphExpression(`${id}`, e.value)
             }
+            if (e.type == 'CallSynchronisationBarrier') {
+                const args: string[] = [`<${id}>Call ${e.target}`]
+                for (let i = 0; i < e.args.length; i++) {
+                    args.push(`<n${i}>arg ${i}`)
+                    graphExpression(`${id}:n${i}`, e.args[i])
+                }
+                console.log(`    ${id} [shape=record,label="${args.join('|')}"]`)
+                id = `${id}:${id}`
+            }
             graphedExpressions.set(e, id)
         }
-        if (src.startsWith('block'))
-            rexpr.push(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
-        else console.log(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
+        if (isInvertedPointer) {
+            if (src.startsWith('block'))
+                rexpr.push(`    ${src} -> ${graphedExpressions.get(e)}[weight=50]`)
+            else console.log(`    ${src} -> ${graphedExpressions.get(e)}[weight=50]`)
+        } else {
+            if (src.startsWith('block'))
+                rexpr.push(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
+            else console.log(`    ${graphedExpressions.get(e)} -> ${src}[weight=50]`)
+        }
+    }
+    for (const blk of blks) {
+        id++
+        let stripExit = false
+        let label = [
+            '<start>entry',
+            ...blk.map((e, i) => {
+                let output = 'idk ' + e.type
+                if (e.type == 'CallSynchronisationBarrier') {
+                    output = `Call`
+                    graphExpression(`block${id}:op${i}`, e, true)
+                }
+                if (e.type == 'Print') output = 'Print'
+                if (e.type == 'PrintFlush') output = 'PrintFlush'
+                if (e.type == 'GlobalSynchronizationBarrier') {
+                    return `<op${i}>var ${e.glb}`
+                }
+                if (e.type == 'ArgumentStorageBarrier') {
+                    output = `arg #${e.index} is ${e.variable}`
+                }
+                if (e.type == 'ReturnValueBarrier') {
+                    output = `return value`
+                }
+                if (e.type == 'Condbr') output = `condbr`
+                if (e.type == 'ControlFlowReturn') {
+                    output = 'return'
+                    stripExit = true
+                }
+                if (e.type == 'ControlFlowExit') {
+                    output = 'exit'
+                    stripExit = true
+                }
+                return `<op${i}>${output}`
+            }),
+            '<end>exit',
+        ]
+        if (stripExit) label = label.slice(0, -1)
+        rexpr.push(`    block${id} [label="${label.join('|')}",shape=record]`)
     }
     id = -1
     for (const blk of blks) {
+        let stripExit = false
         id++
         blk.forEach((e, i) => {
             const target = `block${id}:op${i}`
-            if (e.type == 'CallResultUser') graphExpression(target, e.expr)
             if (e.type == 'Print') graphExpression(target, e.expr)
             if (e.type == 'PrintFlush') graphExpression(target, e.expr)
+            if (e.type == 'ReturnValueBarrier') graphExpression(target, e.value)
             if (e.type == 'GlobalSynchronizationBarrier') {
                 graphExpression(target, e.expr)
                 if (options.dump_prgDfgExpandvars) {
-                    rexpr.push(`    block${id}:op${i} -> g_${e.glb}_${id}[weight=500]`)
+                    rexpr.push(`    block${id}:op${i} -> "g_${e.glb}_${id}"[weight=500]`)
                 } else {
-                    rexpr.push(`    block${id}:op${i} -> g_${e.glb}[weight=500]`)
+                    rexpr.push(`    block${id}:op${i} -> "g_${e.glb}"[weight=500]`)
                 }
             }
             if (e.type == 'Condbr') {
                 graphExpression(target, e.cond)
                 rexpr.push(`    block${id}:op${i} -> block${e.target}:start [weight=1]`)
             }
+            if (e.type == 'ControlFlowReturn' || e.type == 'ControlFlowExit') {
+                stripExit = true
+            }
         })
-        rexpr.push(`    block${id}:end -> block${id + 1}:start [weight=10]`)
+        if (!stripExit) rexpr.push(`    block${id}:end -> block${id + 1}:start [weight=10]`)
     }
     for (const r of rexpr) console.log(r)
     console.log('}')
@@ -194,10 +236,6 @@ function computeExpressionReferences(blkz: block[]): Map<expr, number> {
                 if (e.type == 'Number') return
                 if (e.type == 'String') return
                 if (e.type == 'Variable') return
-                if (e.type == 'Call') {
-                    e.args.forEach(scanRefs)
-                    return
-                }
                 if (
                     e.type == 'LT' ||
                     e.type == 'Add' ||
@@ -213,17 +251,20 @@ function computeExpressionReferences(blkz: block[]): Map<expr, number> {
                     scanRefs(e.value)
                     return
                 }
+                if (op.type == 'CallSynchronisationBarrier') op.args.forEach(e => scanRefs(e))
             }
-            if (op.type == 'CallResultUser') scanRefs(op.expr)
+            if (op.type == 'CallSynchronisationBarrier') op.args.forEach(e => scanRefs(e))
             if (op.type == 'Print') scanRefs(op.expr)
             if (op.type == 'PrintFlush') scanRefs(op.expr)
             if (op.type == 'GlobalSynchronizationBarrier') scanRefs(op.expr)
+            if (op.type == 'ReturnValueBarrier') scanRefs(op.value)
             if (op.type == 'Condbr') scanRefs(op.cond)
         }
     }
     return reft
 }
-export function buildProgram(o: SSAUnit) {
+export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string) {
+    if (fn != '_init') program.label(`fn.${fn}`)
     const blocks = sequenceBlocks(o)
     const bmap = new Map<SSABlock, block>()
     for (const blk of blocks) {
@@ -263,6 +304,21 @@ export function buildProgram(o: SSAUnit) {
                     reg(op.args[0]),
                     variableShadowTable.has(nam) ? variableShadowTable.get(nam) : Variable(nam, id)
                 )
+            } else if (op.op == Opcode.StLoc) {
+                const e = gexpr(op.args[1])
+                variableShadowTable.set(`${mod}::${fn}::${op.args[0]}`, e)
+            } else if (op.op == Opcode.LdLoc) {
+                const nam = `${mod}::${fn}::${op.args[1]}`
+                registerBindingTable.set(
+                    reg(op.args[0]),
+                    variableShadowTable.has(nam) ? variableShadowTable.get(nam) : Variable(nam, id)
+                )
+            } else if (op.op == Opcode.BindArgument) {
+                bmap.get(blk).push({
+                    type: 'ArgumentStorageBarrier',
+                    variable: `${op.args[0]}`,
+                    index: +`${op.args[1]}`,
+                })
             } else if (op.op == Opcode.TargetOp && op.args[0] == 'print.ref') {
                 bmap.get(blk).push({ type: 'Print', expr: gexpr(op.args[1]) })
             } else if (op.op == Opcode.TargetOp && op.args[0] == 'print.direct') {
@@ -273,6 +329,26 @@ export function buildProgram(o: SSAUnit) {
                 registerBindingTable.set(reg(op.args[0]), LT(gexpr(op.args[2]), gexpr(op.args[3])))
             } else if (op.op == Opcode.End) {
                 bmap.get(blk).push({ type: 'ControlFlowExit' })
+                break
+            } else if (op.op == Opcode.Return) {
+                bmap.get(blk).push({ type: 'ReturnValueBarrier', value: gexpr(op.args[0]) })
+                bmap.get(blk).push({ type: 'ControlFlowReturn' })
+                break
+            } else if (op.op == Opcode.ReturnVoid) {
+                bmap.get(blk).push({ type: 'ControlFlowReturn' })
+                break
+            } else if (op.op == Opcode.Function) {
+            } else if (op.op == Opcode.Call) {
+                const csb: op & expr = {
+                    type: 'CallSynchronisationBarrier',
+                    target: `${op.args[1]}`,
+                    args: [],
+                }
+                if (op.args[0] !== null) {
+                    registerBindingTable.set(reg(op.args[0]), csb)
+                }
+                csb.args = op.args.slice(2).map(e => gexpr(e))
+                bmap.get(blk).push(csb)
             } else {
                 _fatal(`idk op ${Opcode[op.op]}`)
             }
@@ -312,11 +388,11 @@ export function buildProgram(o: SSAUnit) {
     }
     if (options.dump_prgDfg) emitGraph(knownGlobals, [...bmap.values()])
     const allrc = computeExpressionReferences([...bmap.values()])
-    const completed = new Map<expr, string>()
+    const completed = new Map<expr, name>()
 
     const tg = (
         ti => () =>
-            `t.${ti++}`
+            program.name2(`t.${ti++}`)
     )(1)
     let watermark = 0
     function computeLive() {
@@ -325,27 +401,26 @@ export function buildProgram(o: SSAUnit) {
             madeProgress = false
             for (const [e] of allrc) {
                 if (completed.has(e)) continue
-                // | { type: 'Number'; value: number }
                 if (e.type == 'Number') {
-                    completed.set(e, `${e.value}`)
+                    completed.set(e, program.imm(e.value))
                     madeProgress = true
                     continue
                 }
                 if (e.type == 'String') {
-                    completed.set(e, `${JSON.stringify(e.value)}`)
+                    completed.set(e, program.stri(e.value))
                     madeProgress = true
                     continue
                 }
                 if (e.type == 'Variable') {
                     if (e.blockid != watermark) continue
-                    completed.set(e, `v.${e.value}`)
+                    completed.set(e, program.name(`v.${e.value}`))
                     madeProgress = true
                     continue
                 }
                 if (e.type == 'Negate') {
                     if (!completed.has(e.value)) continue
                     const name = tg()
-                    console.log(` op equal ${name} 0 ${completed.get(e.value)}`)
+                    program.binop(name, program.imm(0), 'eq', completed.get(e.value))
                     completed.set(e, name)
                     madeProgress = true
                     continue
@@ -355,16 +430,21 @@ export function buildProgram(o: SSAUnit) {
                     if (!completed.has(e.right)) continue
                     const name = tg()
                     const names = {
-                        LT: 'lessThan',
+                        LT: 'lt',
                         Add: 'add',
                     } as const
-                    console.log(
-                        ` op ${names[e.type]} ${name} ${completed.get(e.left)} ${completed.get(
-                            e.right
-                        )}`
+                    program.binop(
+                        name,
+                        completed.get(e.left),
+                        names[e.type],
+                        completed.get(e.right)
                     )
                     completed.set(e, name)
                     madeProgress = true
+                    continue
+                }
+                // Barriers are completed after execution completes
+                if (e.type == 'CallSynchronisationBarrier') {
                     continue
                 }
                 _fatal('todo type ' + e.type)
@@ -377,30 +457,56 @@ export function buildProgram(o: SSAUnit) {
     watermark = -1
     for (const blk of bmap.values()) {
         watermark++
-        if (conditionalBranchTargetSet.has(watermark)) console.log(`b.${watermark}:`)
+        if (conditionalBranchTargetSet.has(watermark)) program.label(`b.${watermark}`)
         computeLive()
-        function getex(e: expr): string {
+        function getex(e: expr): name {
+            // note to future self and/or future maintainers:
+            //    if you are here because you were adding opcodes, please remember to add it to the recursive
+            //    scanner, or liveness will never compute correctly!
             if (!completed.has(e))
-                _fatal('uncompleted expression cannot be passed to getex (bad mgen/gen-prg)')
+                _fatal(
+                    `incomplete expression (${e.type}) cannot be passed to getex (bad mgen/gen-prg)`
+                )
             return completed.get(e)
         }
 
         for (const op of blk) {
             if (op.type == 'Print') {
-                console.log(` print ${getex(op.expr)}`)
-            }
-            if (op.type == 'PrintFlush') {
-                console.log(` printflush ${getex(op.expr)}`)
-            }
-            if (op.type == 'GlobalSynchronizationBarrier') {
-                console.log(` set v.${op.glb} ${getex(op.expr)}`)
-            }
-            if (op.type == 'Condbr') {
-                console.log(` jump b.${op.target} notEqual 0 ${getex(op.cond)}`)
-            }
-            if (op.type == 'ControlFlowExit') {
-                console.log(` end`)
+                program.platformHookPrintValue(getex(op.expr))
+            } else if (op.type == 'PrintFlush') {
+                _fatal('TODO: printflush needs hooks and prg stuff')
+                // program.platformHookPrintFlush(getex(op.expr))
+                // console.log(` printflush ${getex(op.expr)}`)
+            } else if (op.type == 'GlobalSynchronizationBarrier') {
+                program.move(program.name(`v.${op.glb}`), getex(op.expr))
+            } else if (op.type == 'Condbr') {
+                program.bnz(`b.${op.target}`, getex(op.cond))
+            } else if (op.type == 'ControlFlowExit') {
+                program.platformHookEnd()
+            } else if (op.type == 'ControlFlowReturn') {
+                program.retv(`fn.${fn}`)
+            } else if (op.type == 'ArgumentStorageBarrier') {
+                program.move(program.name(`v.${op.variable}`), program.name2(`a${op.index}`))
+            } else if (op.type == 'ReturnValueBarrier') {
+                program.move(program.name(`ret0`), getex(op.value))
+            } else if (op.type == 'CallSynchronisationBarrier') {
+                for (let i = 0; i < op.args.length; i++) {
+                    program.move(program.name2(`a${i}`), getex(op.args[i]))
+                }
+                program.call(`fn.${op.target}`)
+                const return_value = tg()
+                program.move(return_value, program.name2(`ret0`))
+                completed.set(op, return_value)
+                computeLive()
+            } else {
+                // _fatal(`bad op ${op.type}`)
             }
         }
     }
+}
+export function buildProgram(units: [SSAUnit, Map<string, SSAUnit>]) {
+    const program = createProgram()
+    buildUnit(program, units[0], '_main', '_init')
+    for (const [nm, u] of units[1]) buildUnit(program, u, '_main', nm)
+    console.log(program.generate())
 }

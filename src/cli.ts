@@ -4,7 +4,7 @@ import { generateCode } from './codegen'
 import { generateCode as gen2_generateCode } from './codegen2'
 import { writeFileSync } from 'fs'
 import { Options } from './options'
-import { buildProgram } from './gen-prg'
+import { buildProgram, buildUnit } from './gen-prg'
 
 export function onCLIParseComplete(o: Options, input: string, output: string | null) {
     Object.assign(options, o)
@@ -32,7 +32,7 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         console.log('fatal error: type check failed; exiting')
         process.exit(1)
     }
-    if (options.prg) buildProgram(u[0])
+    if (options.prg) buildProgram(u)
     else if (options.gen2) gen2_generateCode(u, writeCode)
     else generateCode(u, writeCode)
     // goodbye, qlxemit

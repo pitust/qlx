@@ -52,7 +52,11 @@ var _middlegen = require('./middlegen');
                     })
                 }
                 mappedRegisters.set(dst, rm)
-            } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob || op.op == _middlegen.Opcode.StLoc) {
+            } else if (
+                op.op == _middlegen.Opcode.StGlob ||
+                op.op == _middlegen.Opcode.StInitGlob ||
+                op.op == _middlegen.Opcode.StLoc
+            ) {
                 const dst = `${op.args[0]}:`
                 const src = (op.args[1]).reg
                 if (!types.has(src)) continue
@@ -137,7 +141,7 @@ var _middlegen = require('./middlegen');
                         op: _middlegen.Opcode.TargetOp,
                         args: ['print.direct', JSON.stringify(c)],
                         pos: op.pos,
-                        meta: op.meta
+                        meta: op.meta,
                     })
                 }
                 function emitrprint(r) {
@@ -145,7 +149,7 @@ var _middlegen = require('./middlegen');
                         op: _middlegen.Opcode.TargetOp,
                         args: ['print.ref', r],
                         pos: op.pos,
-                        meta: op.meta
+                        meta: op.meta,
                     })
                 }
                 let state = 0

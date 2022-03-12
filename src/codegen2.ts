@@ -18,7 +18,9 @@ import {
     calculateCounterCost,
     makeInliningChoice,
 } from './optimizer'
-import { Program, name, ice, createProgram } from './target/targen'
+import { createProgram } from './target/api'
+import { ice } from './target/common'
+import { Program, name } from './target/targen'
 
 const refcounts = new Map<string, number>()
 const optimizedFunctionBlocks = new Map<string, SSABlock[]>()

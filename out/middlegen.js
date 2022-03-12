@@ -105,7 +105,8 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
  const getreg = (
-    i => () => i++
+    i => () =>
+        i++
 )(1); exports.getreg = getreg
 function construct(ctx, type) {
     if (typeof type == 'object') {
@@ -248,6 +249,7 @@ function ssablk() {
     }
 }
 const functionGenerationQueue = new Set()
+const argumentBindingLookback = new WeakMap()
 function doGenerateSSA(node, ctx) {
     function pushOp(op) {
         ctx.currentBlock.ops.push(op)
@@ -470,12 +472,28 @@ function doGenerateSSA(node, ctx) {
         const idx = +thestr(idx_)
         const [nm_, typ] = theast(c0).children
         const nm = thestr(nm_)
-        pushOp({
-            meta,
-            pos: node.pos,
-            op: Opcode.BindArgument,
-            args: [nm, idx, doGenerateType(theast(typ))],
-        })
+        if (argumentBindingLookback.has(ctx.currentBlock)) {
+            argumentBindingLookback.get(ctx.currentBlock).ops.push({
+                meta,
+                pos: node.pos,
+                op: Opcode.BindArgument,
+                args: [nm, idx, doGenerateType(theast(typ))],
+            })
+        } else {
+            ctx.currentBlock.ops.push({
+                meta,
+                pos: node.pos,
+                op: Opcode.BindArgument,
+                args: [nm, idx, doGenerateType(theast(typ))],
+            })
+            const next = ssablk()
+            ctx.currentBlock.cond = JumpCond.AlwaysNoMerge
+            ctx.currentBlock.condargs = []
+            ctx.currentBlock.targets = [next]
+            argumentBindingLookback.set(next, ctx.currentBlock)
+            ctx.currentBlock = next
+            ctx.blocks.add(next)
+        }
         return
     }
     if (node.type == 'returnnode') {
@@ -563,7 +581,7 @@ function doGenerateSSA(node, ctx) {
     for (const block of unit.blocks) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
-    for (const block of (_nullishCoalesce(b, () => ([])))) {
+    for (const block of _nullishCoalesce(b, () => ( []))) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
     for (const block of unit.blocks) {

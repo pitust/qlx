@@ -18,133 +18,31 @@ var _middlegen = require('./middlegen');
 
 var _optimizer = require('./optimizer');
 
+
+
+
+
+
+
+
+
+
+
+var _highlight = require('./target/highlight');
+
 const refcounts = new Map()
-
-const ri = '\x005'
-const opc = '\x00+\x002'
-const cond = '\x003'
-const label = '\x00r\x003'
-const glob = '\x00+\x002'
-const nostyle = '\x00r'
-const comment = '\x00r\x000'
-const fmt = {
-    assign: '\x00a',
-    cflow: '\x00b',
-    unit: '\x00c',
-    blockio: '\x00d',
-    rawio: '\x00e',
-}
-const selector = '\x00f'
-
-const hlcolors = {
-    kw: '\x00r\x003',
-    imm: '\x00r\x002',
-    ident: '\x00r\x004',
-    operator: '\x00r\x001',
-    number: '\x00r\x005',
-}
-
-const kw = [
-    'fn',
-    'do',
-    'return',
-    'true',
-    'false',
-    'printflush',
-    'printf',
-    'print',
-    'getlink',
-    'if',
-    'else',
-    'end',
-    'use',
-    'while',
-    'switch',
-    'case',
-    'default',
-    'let',
-    'read',
-    'seton',
-    'get{',
-    'set{',
-    '}'
-]
-const kwregex = new RegExp('(?<=\\s|^)(' + kw.join('|') + ')(?=\\s|$)', 'g')
-function highlight(k, hotrange = [0, 0]) {
-    k = k
-        .replaceAll(/"[^"]*"/g, re => '%s%' + re + '%S%')
-        .replaceAll(kwregex, kw => '%k%' + kw + '%r%')
-        .replaceAll(/(?<=\s|^)\.?[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[a-zA-Z_][a-zA-Z_0-9]*\/[0-9]+(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
-        .replaceAll(/(?<!%.%)[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)@[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%@%' + id + '%r%')
-        .replaceAll('%n%', hlcolors.number)
-        .replaceAll('%i%', hlcolors.ident)
-        .replaceAll('%@%', hlcolors.imm)
-        .replaceAll('%k%', hlcolors.kw)
-        .replaceAll('%o%', hlcolors.operator)
-        .replaceAll('%r%', nostyle)
-        .replaceAll('%s%', '\x01!+')
-        .replaceAll('%S%', '\x01!-')
-
-    // injector...
-    let pos = 0
-    let state = false
-    let output = ''
-    let mode = ''
-    let is_str = false
-    for (let i = 0; i < k.length; i++) {
-        if (k[i] == '\x01' && k[i + 1] == '!') {
-            if (k[i + 2] == '+') is_str = true
-            if (k[i + 2] == '-') is_str = false
-            i += 2
-            mode = '3'
-            if (is_str) output += hlcolors.imm
-            else output += nostyle
-            continue
-        }
-        if (k[i] == '\x00') {
-            if (!is_str) output += k.slice(i, i + 2)
-            i++
-            if (!is_str) mode = k[i]
-            if (state && k[i] == 'r') output += '\x00+'
-            continue
-        }
-        if (pos >= hotrange[0] && pos < hotrange[0] + hotrange[1] && !state) {
-            state = true
-            output += '\x00r\x00+'
-            if (mode) output += '\x00' + mode
-        }
-        if (pos >= hotrange[0] + hotrange[1] && state) {
-            output += '\x00-\x00r'
-            state = false
-            if (mode) output += '\x00' + mode
-        }
-        if (k[i] == '{' && k[i + 1] == '}' && is_str) {
-            output += hlcolors.ident + '{}' + hlcolors.imm
-            pos += 2
-            i++
-            continue
-        }
-        pos += 1
-        output += k[i]
-    }
-    return output
-}
-
 const optimizedFunctionBlocks = new Map()
 const inliningCost = new Map()
 const inliningCounterCost = new Map()
 const functionCallReferenceSet = new Set()
 function generateUnit(mod, fn, unit, writeCode) {
     function immref(arg) {
-        if (typeof arg == 'number') return `${ri}${arg}${nostyle}`
-        if (typeof arg == 'string') return ri + JSON.stringify(arg) + nostyle
-        if ('reg' in arg) return `${ri}r${arg.reg}${nostyle}`
-        if ('arg' in arg) return `${ri}arg-${arg.arg}.${mod}::${fn}${nostyle}`
-        if ('glob' in arg) return `${glob}${mod}::_init::${arg.glob}${nostyle}`
-        if ('blox' in arg) return glob + arg.blox + nostyle
+        if (typeof arg == 'number') return `${_highlight.ri}${arg}${_highlight.nostyle}`
+        if (typeof arg == 'string') return _highlight.ri + JSON.stringify(arg) + _highlight.nostyle
+        if ('reg' in arg) return `${_highlight.ri}r${arg.reg}${_highlight.nostyle}`
+        if ('arg' in arg) return `${_highlight.ri}arg-${arg.arg}.${mod}::${fn}${_highlight.nostyle}`
+        if ('glob' in arg) return `${_highlight.glob}${mod}::_init::${arg.glob}${_highlight.nostyle}`
+        if ('blox' in arg) return _highlight.glob + arg.blox + _highlight.nostyle
         console.log(`error: no rtti support rn!`)
         process.exit(2)
     }
@@ -194,87 +92,87 @@ function generateUnit(mod, fn, unit, writeCode) {
     let programLongestOpcode = 4
     for (const blk of blocks) {
         const id = blookup(blk)
-        code.push(`${label}${mod}::${fn}.${id}${nostyle}:`)
+        code.push(`${_highlight.label}${mod}::${fn}.${id}${_highlight.nostyle}:`)
         for (const op of blk.ops) {
             let watermark = code.length
             if (_middlegen.options.interleaveSsa)
                 code.push(
-                    `    # ${opc}${_middlegen.Opcode[op.op]}${nostyle} ${op.args
+                    `    # ${_highlight.opc}${_middlegen.Opcode[op.op]}${_highlight.nostyle} ${op.args
                         .map(e => _util.inspect.call(void 0, e, { breakLength: Infinity }))
                         .join(' ')}`
                 )
             if (op.op == _middlegen.Opcode.TypeGlob || op.op == _middlegen.Opcode.TypeLoc) {
             } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) {
                 code.push(
-                    `    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(
+                    `    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::_init::${op.args[0]}${_highlight.nostyle} ${immref(
                         op.args[1]
                     )}`
                 )
             } else if (op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc) {
                 code.push(
-                    `    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(
+                    `    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::${fn}::${op.args[0]}${_highlight.nostyle} ${immref(
                         op.args[1]
                     )}`
                 )
             } else if (op.op == _middlegen.Opcode.Move) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`
                 )
             } else if (op.op == _middlegen.Opcode.BindArgument) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${_highlight.glob}${mod}::${fn}::${op.args[0]} ${_highlight.nostyle}${_highlight.ri}arg-${op.args[1]}.${mod}::${fn}${_highlight.nostyle}`
                 )
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     code.push(
-                        `    ${fmt.assign}set ${ri}arg-${i}.${mod}::${
+                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${mod}::${
                             op.args[1]
-                        }${nostyle} ${immref(op.args[i + 2])}`
+                        }${_highlight.nostyle} ${immref(op.args[i + 2])}`
                     )
                 }
                 code.push(
-                    `    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
+                    `    ${_highlight.fmt.assign}op ${_highlight.selector}add ${_highlight.ri}lr.${mod}::${op.args[1]} ${_highlight.selector}@counter ${_highlight.ri}1${_highlight.nostyle}`
                 )
                 code.push(
-                    `    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`
+                    `    ${_highlight.fmt.assign}jump ${_highlight.label}fn.${mod}::${op.args[1]} ${_highlight.selector}always${_highlight.nostyle}`
                 )
                 if (op.args[0]) {
                     code.push(
-                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`
+                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv.${mod}::${op.args[1]}`
                     )
                 }
                 functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}${mod}::_init::${
                         op.args[1]
-                    }${nostyle}`
+                    }${_highlight.nostyle}`
                 )
             } else if (op.op == _middlegen.Opcode.LdLoc) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::${fn}::${
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}${mod}::${fn}::${
                         op.args[1]
-                    }${nostyle}`
+                    }${_highlight.nostyle}`
                 )
             } else if (op.op == _middlegen.Opcode.BinOp) {
                 code.push(
-                    `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(
+                    `    ${_highlight.fmt.assign}op ${_highlight.selector}${op.args[1]}${_highlight.nostyle} ${immref(
                         op.args[0]
                     )} ${immref(op.args[2])} ${immref(op.args[3])}`
                 )
             } else if (op.op == _middlegen.Opcode.TargetOp) {
                 const ops = {
-                    'print.direct': () => `${fmt.rawio}print ${ri}${op.args[1]}${nostyle}`,
-                    'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
-                    'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
+                    'print.direct': () => `${_highlight.fmt.rawio}print ${_highlight.ri}${op.args[1]}${_highlight.nostyle}`,
+                    'print.ref': () => `${_highlight.fmt.rawio}print${_highlight.nostyle} ${immref(op.args[1])}`,
+                    'print.flush': () => `${_highlight.fmt.rawio}printflush${_highlight.nostyle} ${immref(op.args[1])}`,
                     _lookupblox: () =>
-                        `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                        `${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[1])} ${op.args[2]}`,
                     read: () =>
-                        `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(
+                        `${_highlight.fmt.assign}read${_highlight.nostyle} ${immref(op.args[1])} ${immref(
                             op.args[2]
                         )} ${immref(op.args[3])}`,
                     write: () =>
-                        `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(
+                        `${_highlight.fmt.assign}write${_highlight.nostyle} ${immref(op.args[1])} ${immref(
                             op.args[2]
                         )} ${immref(op.args[3])}`,
                 }
@@ -282,11 +180,11 @@ function generateUnit(mod, fn, unit, writeCode) {
                 code.push(`    ${ops[op.args[0]]()}`)
             } else if (op.op == _middlegen.Opcode.Return) {
                 code.push(
-                    `    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`
+                    `    ${_highlight.fmt.cflow}set ${_highlight.ri}rv.${mod}::${fn}${_highlight.nostyle} ${immref(op.args[0])}`
                 )
-                code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
+                code.push(`    ${_highlight.fmt.cflow}set ${_highlight.selector}@counter ${_highlight.ri}lr.${mod}::${fn}${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.ReturnVoid) {
-                code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
+                code.push(`    ${_highlight.fmt.cflow}set ${_highlight.selector}@counter ${_highlight.ri}lr.${mod}::${fn}${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.End) {
                 if (
                     _middlegen.options.noEnd &&
@@ -295,7 +193,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                 ) {
                     continue
                 }
-                code.push(`    ${fmt.cflow}end${nostyle}`)
+                code.push(`    ${_highlight.fmt.cflow}end${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.Function) {
                 // `Function` is a typechecker hint.
             } else {
@@ -308,7 +206,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                     programLongestOpcode
                 )
                 code[i] += ' #@@ ' + op.pos + '  \t'
-                if (op.meta) code[i] += '| ' + nostyle + highlight(op.meta.line, op.meta.range)
+                if (op.meta) code[i] += '| ' + _highlight.nostyle + _highlight.highlight.call(void 0, op.meta.line, op.meta.range)
             }
             if ([_middlegen.Opcode.Return, _middlegen.Opcode.ReturnVoid, _middlegen.Opcode.End].includes(op.op)) break
         }
@@ -330,35 +228,35 @@ function generateUnit(mod, fn, unit, writeCode) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target}${nostyle}`)
-            } else code.push(`    ${comment}# falls through`)
+                code.push(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${target}${_highlight.nostyle}`)
+            } else code.push(`    ${_highlight.comment}# falls through`)
         } else if (blk.cond == _middlegen.JumpCond.AlwaysNoMerge) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${fmt.cflow}jump ${label}${target} ${comment}# ${ri}note: this should never happen!`
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.comment}# ${_highlight.ri}note: this should never happen!`
                 )
-            } else code.push(`    ${comment}# (call block falls through)`)
+            } else code.push(`    ${_highlight.comment}# (call block falls through)`)
         } else if (blk.cond == _middlegen.JumpCond.TestBoolean) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
                     `    ${
-                        fmt.cflow
-                    }jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(
+                        _highlight.fmt.cflow
+                    }jump ${_highlight.label}${target} ${_highlight.selector}notEqual${_highlight.nostyle} 0 ${immref(
                         blk.condargs[0]
-                    )} ${comment}# consequent`
+                    )} ${_highlight.comment}# consequent`
                 )
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} 0 ${immref(
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}equal${_highlight.nostyle} 0 ${immref(
                         blk.condargs[0]
-                    )} ${comment}# alternate`
+                    )} ${_highlight.comment}# alternate`
                 )
             }
         } else if (blk.cond == _middlegen.JumpCond.Equal) {
@@ -366,28 +264,28 @@ function generateUnit(mod, fn, unit, writeCode) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${fmt.cflow}jump ${label}${target} ${selector}equal${nostyle} ${immref(
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}equal${_highlight.nostyle} ${immref(
                         blk.condargs[0]
-                    )} ${immref(blk.condargs[1])} ${comment}# consequent`
+                    )} ${immref(blk.condargs[1])} ${_highlight.comment}# consequent`
                 )
             }
             if (!hasAlt) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[1])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} ${immref(
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}notEqual${_highlight.nostyle} ${immref(
                         blk.condargs[0]
-                    )} ${immref(blk.condargs[1])} ${comment}# alternate`
+                    )} ${immref(blk.condargs[1])} ${_highlight.comment}# alternate`
                 )
             }
         } else if (blk.cond == _middlegen.JumpCond.Abort) {
             if (!_middlegen.options.noSafeAbort)
                 code.push(
-                    `    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`
+                    `    ${_highlight.fmt.assign}op ${_highlight.selector}sub @counter @counter ${_highlight.ri}1 ${_highlight.comment}# abort`
                 )
-            else code.push(`    ${comment}# abort!`)
+            else code.push(`    ${_highlight.comment}# abort!`)
         } else {
-            code.push(`    ${comment}# ${fmt.rawio}TODO${comment}: branch: ${_middlegen.JumpCond[blk.cond]}`)
+            code.push(`    ${_highlight.comment}# ${_highlight.fmt.rawio}TODO${_highlight.comment}: branch: ${_middlegen.JumpCond[blk.cond]}`)
         }
     }
     for (let i = 0; i < code.length; i++) {
@@ -397,10 +295,10 @@ function generateUnit(mod, fn, unit, writeCode) {
         const lolcount = lol.match(/\x00./g).length
         code[i] =
             lol.padEnd(programLongestOpcode + lolcount * 2) +
-            comment +
+            _highlight.comment +
             '# ' +
             tbl.slice(-1)[0] +
-            nostyle
+            _highlight.nostyle
     }
     if (_middlegen.options.stripComments) {
         code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
@@ -408,37 +306,8 @@ function generateUnit(mod, fn, unit, writeCode) {
     if (_middlegen.options.eliminateBranches) {
         code = code.filter(e => !(e.endsWith(':') && !usedlabels.has(e.slice(4, -3))))
     }
-    const colormap = {
-        r: '\x1b[0m',
-        '+': '\x1b[1m',
-        '-': '\x1b[2m',
-        '0': '\x1b[30m',
-        '1': '\x1b[31m',
-        '2': '\x1b[32m',
-        '3': '\x1b[33m',
-        '4': '\x1b[34m',
-        '5': '\x1b[35m',
-        '6': '\x1b[36m',
-        '7': '\x1b[37m',
-        a: '\x1b[0;35m', // assign
-        b: '\x1b[0;34m', // cflow
-        // unit: '\x00c',
-        // blockio: '\x00d',
-        e: '\x1b[0;31m', // rawio
-        f: '\x1b[0;36m', // selector
-    }
-    writeCode(
-        code.join('\n').replaceAll(/\0(.)/g, (_, mode) => {
-            if (process.env.QLXCOLOR == 'on') {
-                if (mode in colormap) return colormap[mode]
-                return '{' + mode + '}'
-            } else if (process.env.QLXCOLOR == 'debug') {
-                return '{' + mode + '}'
-            } else {
-                return ''
-            }
-        })
-    )
+
+    writeCode(_highlight.finalizeColors.call(void 0, code))
 }
  function generateCode(
     units,
