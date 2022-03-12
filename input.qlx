@@ -1,8 +1,5 @@
-
-let i = + 3 4
-let j = + 4 5
-while < i 100 do
-  printf "some number: {}" + 9 60
-  i = + 1 i
+fn test { i: float } -> float
+  return + i 69
 end
 
+print test/1 3

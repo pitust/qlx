@@ -11,6 +11,7 @@ export abstract class Program {
     abstract imm(n: number): name
     abstract stri(n: string): name
     abstract name(n: string): name
+    abstract loc(n: string): name
     abstract name2(n: string): name
     abstract label(tgd: string): void
     abstract br(tgd: string): void
@@ -25,6 +26,12 @@ export abstract class Program {
     abstract platformHookEnd(): void
     abstract platformHookPrintValue(p: name): void
     abstract platformHookPrintString(p: string): void
+
+    // functions
+    abstract retv(name: string): void
+
+    // functions
+    abstract call(name: string): void
 }
 
 const hlcolors = {
@@ -58,6 +65,7 @@ const kw = [
     'seton',
     'get{',
     'set{',
+    '{',
     '}',
 ]
 const kwregex = new RegExp('(?<=\\s|^)(' + kw.join('|') + ')(?=\\s|$)', 'g')
@@ -66,9 +74,12 @@ function highlight(k: string, hotrange = [0, 0]) {
         .replaceAll(/"[^"]*"/g, re => '%s%' + re + '%S%')
         .replaceAll(kwregex, kw => '%k%' + kw + '%r%')
         .replaceAll(/(?<=\s|^)\.?[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[a-zA-Z_][a-zA-Z_0-9]*\/[0-9]+(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
-        .replaceAll(/(?<!%.%)[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
+        .replaceAll(
+            /(?<=\s|^)([a-zA-Z_][a-zA-Z_0-9]*)(\/[0-9]+)(?=(\s|$))/g,
+            (_, id, p2) => '%i%' + id + '%o%' + p2 + '%r%'
+        )
+        .replaceAll(/(?<=\s|^|\/%r%)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
+        .replaceAll(/(?<!%.%)(?<![a-z])[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
         .replaceAll(/(?<=\s|^)@[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%@%' + id + '%r%')
         .replaceAll('%n%', hlcolors.number)
         .replaceAll('%i%', hlcolors.ident)
@@ -150,7 +161,7 @@ class MindustryProgram extends Program {
         this._code.push(s)
     }
     line(pos: string, source: string): void {
-        this.currentline = `${comment}# ${pos.padEnd(24)} | ${highlight(source)}`
+        this.currentline = `${comment}# ${pos.padEnd(26)} | ${highlight(source)}`
     }
 
     move(tgd: name, value: name): void {
@@ -184,10 +195,22 @@ class MindustryProgram extends Program {
         this.nameLookup.set(sym, `${glob}g${n}${nostyle}`)
         return sym
     }
+    loc(n: string): name {
+        const sym = Symbol(`${n}`) as name
+        this.nameLookup.set(sym, `${glob}l${n}${nostyle}`)
+        return sym
+    }
     name2(n: string): name {
         const sym = Symbol(`${n}`) as name
-        this.nameLookup.set(sym, `${ri}t${n}${nostyle}`)
+        this.nameLookup.set(sym, `${glob}t${n}${nostyle}`)
         return sym
+    }
+    call(name: string): void {
+        this.emit(`    ${fmt.cflow}op ${selector}add @counter ${ri}2${nostyle}`)
+        this.emit(`    ${fmt.cflow}jump ${label}${name} ${selector}always${nostyle}`)
+    }
+    retv(name: string): void {
+        this.emit(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${name}${nostyle}`)
     }
     label(tgd: string) {
         this.emit(`${label}${tgd}${nostyle}:`, false)

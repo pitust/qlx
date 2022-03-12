@@ -563,6 +563,9 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
     for (const block of unit.blocks) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
+    for (const block of (b??[])) {
+        if (!m.has(block)) m.set(block, 'blk.' + i++)
+    }
     for (const block of unit.blocks) {
         if (b && !b.includes(block)) continue
         console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)

@@ -88,7 +88,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             } else if (op.op == Opcode.StGlob || op.op == Opcode.StInitGlob) {
                 program.move(program.name(`${mod}::_init::${op.args[0]}`), immref(op.args[1]))
             } else if (op.op == Opcode.StLoc || op.op == Opcode.StInitLoc) {
-                program.move(program.name(`${mod}::${fn}::${op.args[0]}`), immref(op.args[1]))
+                program.move(program.loc(`${mod}::${fn}::${op.args[0]}`), immref(op.args[1]))
             } else if (op.op == Opcode.Move) {
                 program.move(immref(op.args[0]), immref(op.args[1]))
             } else if (op.op == Opcode.BindArgument) {
@@ -97,30 +97,21 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                     program.name2(`${mod}::${fn}.a${op.args[1]}.`)
                 )
             } else if (op.op == Opcode.Call) {
-                ice('TODO: call')
-                // for (let i = 0; i < op.args.length - 2; i++) {
-                //     code.push(
-                //         `    ${fmt.assign}set ${ri}arg-${i}.${mod}::${
-                //             op.args[1]
-                //         }${nostyle} ${immref(op.args[i + 2])}`
-                //     )
-                // }
-                // code.push(
-                //     `    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
-                // )
-                // code.push(
-                //     `    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`
-                // )
-                // if (op.args[0]) {
-                //     code.push(
-                //         `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`
-                //     )
-                // }
-                // functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
+                for (let i = 0; i < op.args.length - 2; i++) {
+                    program.move(
+                        program.name2(`${mod}::${op.args[1]}-a${i}`),
+                        immref(op.args[i + 2])
+                    )
+                }
+                program.call(`${mod}::${op.args[1]}`)
+                if (op.args[0]) {
+                    program.move(immref(op.args[0]), program.name2(`${mod}::${op.args[1]}-ret0`))
+                }
+                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 program.move(immref(op.args[0]), program.name(`${mod}::_init::${op.args[1]}`))
             } else if (op.op == Opcode.LdLoc) {
-                program.move(immref(op.args[0]), program.name(`${mod}::${fn}::${op.args[1]}`))
+                program.move(immref(op.args[0]), program.loc(`${mod}::${fn}::${op.args[1]}`))
             } else if (op.op == Opcode.BinOp) {
                 const nam = `${op.args[1]}`
                 const mappings = new Map(
@@ -161,14 +152,10 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 // if (!(<string>op.args[0] in ops)) console.log('op:', op.args[0])
                 // code.push(`    ${ops[<keyof typeof ops>op.args[0]]()}`)
             } else if (op.op == Opcode.Return) {
-                ice('todo: return')
-                // code.push(
-                //     `    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`
-                // )
-                // code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
+                program.move(program.name2(`${mod}::${fn}-ret0`), immref(op.args[0]))
+                program.retv(`${mod}::${fn}`)
             } else if (op.op == Opcode.ReturnVoid) {
-                ice('todo: retv')
-                // code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
+                program.retv(`${mod}::${fn}`)
             } else if (op.op == Opcode.End) {
                 program.platformHookEnd()
                 // if (
@@ -237,9 +224,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             ice(`todo: cond ${JumpCond[blk.cond]}`)
         }
     }
-    writeCode(
-        program.generate()
-    )
+    writeCode(program.generate())
 }
 export function generateCode(
     units: [SSAUnit, Map<string, SSAUnit>],

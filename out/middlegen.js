@@ -1,4 +1,4 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }// vim: ts=4 sts=4 sw=4 et list
+"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; } function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }// vim: ts=4 sts=4 sw=4 et list
 var _assert = require('assert'); var _assert2 = _interopRequireDefault(_assert);
 var _fs = require('fs');
 var _parseqlx = require('./parseqlx');
@@ -561,6 +561,9 @@ function doGenerateSSA(node, ctx) {
     const m = new Map()
     m.set(unit.startBlock, 'entry')
     for (const block of unit.blocks) {
+        if (!m.has(block)) m.set(block, 'blk.' + i++)
+    }
+    for (const block of (_nullishCoalesce(b, () => ([])))) {
         if (!m.has(block)) m.set(block, 'blk.' + i++)
     }
     for (const block of unit.blocks) {

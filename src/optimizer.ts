@@ -208,10 +208,7 @@ function eliminateDeadCode(blocks: SSABlock[]) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
-    for (const match of findall(
-        blocks,
-        op => op.op == Opcode.StLoc || op.op == Opcode.StInitLoc
-    )) {
+    for (const match of findall(blocks, op => op.op == Opcode.StLoc || op.op == Opcode.StInitLoc)) {
         const tgd = str(match.op.args[0])
         if (!tgd) continue
 
@@ -501,6 +498,7 @@ function mergePrintOperations(blocks: SSABlock[]) {
                     replace({
                         op: Opcode.TargetOp,
                         pos: op.pos,
+                        meta: op.meta,
                         args: ['print.direct', `"${op.args[1]}"`],
                     })
                     wasprinting = true
@@ -586,7 +584,7 @@ function performInlining(
                 blk.ops = []
 
                 // allocate a register for the return value...
-                const retvalue = getreg()
+                const retvalue = callop.args[0]
 
                 // and all the params...
                 const argind = callop.args.slice(2)
@@ -613,7 +611,7 @@ function performInlining(
                                     pos: op.pos,
                                     meta: op.meta,
                                     op: Opcode.Move,
-                                    args: [retvalue, op.args[1]],
+                                    args: [retvalue, op.args[0]],
                                 })
                             }
                             blk.cond = JumpCond.Always
@@ -664,14 +662,15 @@ function performInlining(
     return blocks
 }
 export function optimize(
-    _u: SSAUnit,
+    u: SSAUnit,
     blocks: SSABlock[],
     getInliningDecision: (fn: string) => boolean,
     getFunctionBlocks: (fn: string) => SSABlock[],
     isRoot: boolean
 ): SSABlock[] {
     if (options.rawArgRefs) performRawArgumentBinding(blocks)
-    if (options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks, isRoot)
+    if (options.inline)
+        blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks, isRoot)
     if (options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
@@ -681,6 +680,7 @@ export function optimize(
     if (options.mergeBlocks) mergeBlocks(blocks)
     if (options.mergePrint) mergePrintOperations(blocks)
     blocks = orderBlocks(new Set(blocks), blocks[0])
+    u.blocks = new Set(blocks)
     return blocks
 }
 const opcost = {

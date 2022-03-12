@@ -25,6 +25,13 @@
 
 
 
+
+
+
+
+
+
+
 } exports.Program = Program;
 
 const hlcolors = {
@@ -58,6 +65,7 @@ const kw = [
     'seton',
     'get{',
     'set{',
+    '{',
     '}',
 ]
 const kwregex = new RegExp('(?<=\\s|^)(' + kw.join('|') + ')(?=\\s|$)', 'g')
@@ -66,9 +74,12 @@ function highlight(k, hotrange = [0, 0]) {
         .replaceAll(/"[^"]*"/g, re => '%s%' + re + '%S%')
         .replaceAll(kwregex, kw => '%k%' + kw + '%r%')
         .replaceAll(/(?<=\s|^)\.?[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[a-zA-Z_][a-zA-Z_0-9]*\/[0-9]+(?=\s|$)/g, id => '%i%' + id + '%r%')
-        .replaceAll(/(?<=\s|^)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
-        .replaceAll(/(?<!%.%)[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
+        .replaceAll(
+            /(?<=\s|^)([a-zA-Z_][a-zA-Z_0-9]*)(\/[0-9]+)(?=(\s|$))/g,
+            (_, id, p2) => '%i%' + id + '%o%' + p2 + '%r%'
+        )
+        .replaceAll(/(?<=\s|^|\/%r%)[0-9]+(\.[0-9]*)?(?=\s|$)/g, id => '%n%' + id + '%r%')
+        .replaceAll(/(?<!%.%)(?<![a-z])[\:\*\/\+\-=\.!<>]/g, id => '%o%' + id + '%r%')
         .replaceAll(/(?<=\s|^)@[a-zA-Z_][a-zA-Z_0-9]*(?=\s|$)/g, id => '%@%' + id + '%r%')
         .replaceAll('%n%', hlcolors.number)
         .replaceAll('%i%', hlcolors.ident)
@@ -150,7 +161,7 @@ class MindustryProgram extends Program {constructor(...args) { super(...args); M
         this._code.push(s)
     }
     line(pos, source) {
-        this.currentline = `${comment}# ${pos.padEnd(24)} | ${highlight(source)}`
+        this.currentline = `${comment}# ${pos.padEnd(26)} | ${highlight(source)}`
     }
 
     move(tgd, value) {
@@ -184,10 +195,22 @@ class MindustryProgram extends Program {constructor(...args) { super(...args); M
         this.nameLookup.set(sym, `${glob}g${n}${nostyle}`)
         return sym
     }
+    loc(n) {
+        const sym = Symbol(`${n}`) 
+        this.nameLookup.set(sym, `${glob}l${n}${nostyle}`)
+        return sym
+    }
     name2(n) {
         const sym = Symbol(`${n}`) 
-        this.nameLookup.set(sym, `${ri}t${n}${nostyle}`)
+        this.nameLookup.set(sym, `${glob}t${n}${nostyle}`)
         return sym
+    }
+    call(name) {
+        this.emit(`    ${fmt.cflow}op ${selector}add @counter ${ri}2${nostyle}`)
+        this.emit(`    ${fmt.cflow}jump ${label}${name} ${selector}always${nostyle}`)
+    }
+    retv(name) {
+        this.emit(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${name}${nostyle}`)
     }
     label(tgd) {
         this.emit(`${label}${tgd}${nostyle}:`, false)

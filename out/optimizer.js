@@ -208,10 +208,7 @@ function eliminateDeadCode(blocks) {
         // then remove this opcode
         match.blk.ops = match.blk.ops.filter(op => match.op != op)
     }
-    for (const match of findall(
-        blocks,
-        op => op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc
-    )) {
+    for (const match of findall(blocks, op => op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc)) {
         const tgd = str(match.op.args[0])
         if (!tgd) continue
 
@@ -501,6 +498,7 @@ function mergePrintOperations(blocks) {
                     replace({
                         op: _middlegen.Opcode.TargetOp,
                         pos: op.pos,
+                        meta: op.meta,
                         args: ['print.direct', `"${op.args[1]}"`],
                     })
                     wasprinting = true
@@ -586,7 +584,7 @@ function performInlining(
                 blk.ops = []
 
                 // allocate a register for the return value...
-                const retvalue = _middlegen.getreg.call(void 0, )
+                const retvalue = callop.args[0]
 
                 // and all the params...
                 const argind = callop.args.slice(2)
@@ -613,7 +611,7 @@ function performInlining(
                                     pos: op.pos,
                                     meta: op.meta,
                                     op: _middlegen.Opcode.Move,
-                                    args: [retvalue, op.args[1]],
+                                    args: [retvalue, op.args[0]],
                                 })
                             }
                             blk.cond = _middlegen.JumpCond.Always
@@ -664,14 +662,15 @@ function performInlining(
     return blocks
 }
  function optimize(
-    _u,
+    u,
     blocks,
     getInliningDecision,
     getFunctionBlocks,
     isRoot
 ) {
     if (_middlegen.options.rawArgRefs) performRawArgumentBinding(blocks)
-    if (_middlegen.options.inline) blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks, isRoot)
+    if (_middlegen.options.inline)
+        blocks = performInlining(blocks, getInliningDecision, getFunctionBlocks, isRoot)
     if (_middlegen.options.constProp)
         while (propagateConstants(blocks)) {
             blocks = orderBlocks(new Set(blocks), blocks[0])
@@ -681,6 +680,7 @@ function performInlining(
     if (_middlegen.options.mergeBlocks) mergeBlocks(blocks)
     if (_middlegen.options.mergePrint) mergePrintOperations(blocks)
     blocks = orderBlocks(new Set(blocks), blocks[0])
+    u.blocks = new Set(blocks)
     return blocks
 } exports.optimize = optimize;
 const opcost = {
