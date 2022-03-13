@@ -4,8 +4,22 @@
 
 
  class TargetMachine {
-    // registers
+    // general info
     
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

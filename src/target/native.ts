@@ -4,9 +4,11 @@ export type Global = symbol & { _kind: '__global' }
 export type Local = symbol & { _kind: '__local' }
 export type Register = symbol & { _kind: '__register' }
 export abstract class TargetMachine {
-    // registers
-    abstract registers(): Register[] | 'infinite'
-    abstract conjureRegister(): Register // only if registers() == 'infinit'
+    // general info
+    abstract registers(): Register[]
+    abstract isTwoAddress(): boolean
+    abstract name(): string
+    abstract finalize(): string[]
 
     // labels & control flow
     abstract label(name: string): void
@@ -25,7 +27,14 @@ export abstract class TargetMachine {
     abstract ldloc(dst: Register, src: Local): void
     abstract stloc(dst: Local, src: Register): void
 
+    // misc
+    abstract move(dst: Register, src: Register): void
+    abstract movei(dst: Register, src: number): void
+    abstract acquireTemp(): Register
+    abstract releaseTemp(r: Register): void
+
     // operations
+    abstract xor(dst: Register, left: Register, right: Register): void
     abstract add(dst: Register, left: Register, right: Register): void
     abstract sub(dst: Register, left: Register, right: Register): void
     abstract eq(dst: Register, left: Register, right: Register): void
@@ -45,6 +54,11 @@ export abstract class TargetMachine {
     abstract read16(dst: Register, addr: Register): void
     abstract read32(dst: Register, addr: Register): void
     abstract read64(dst: Register, addr: Register): void
+
+    // stack frame
+    abstract stackRead(dst: Register, src: number): void
+    abstract stackWrite(dst: number, src: Register): void
+    abstract stackFrameExtend(count: number): void
 }
 
 export const targettingRegistry = new Map<string, () => TargetMachine>()

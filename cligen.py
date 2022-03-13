@@ -25,6 +25,7 @@ options = {
     'dump=fresh-ssa': 'dump initial SSA contents',
     'dump=ssa-pre-opt': 'dump SSA before optimization',
     'dump=ssa-pre-emit': 'dump final SSA to be emitted',
+    'dump=native-graph-coloring': 'dump native codegen graph coloring results',
     'cg-output=suppress': 'do not output anything',
 }
 keydata = []

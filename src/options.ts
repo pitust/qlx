@@ -5,6 +5,7 @@ export interface Options {
     constProp: boolean
     dump_ast: boolean
     dump_freshSsa: boolean
+    dump_nativeGraphColoring: boolean
     dump_prgDfg: boolean
     dump_prgDfgExpandvars: boolean
     dump_ssaPreEmit: boolean

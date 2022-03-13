@@ -51,7 +51,9 @@ export class MindustryProgram extends Program {
         return sym
     }
     stri(n: string): name {
-        ice('todo: Program: stri()')
+        const sym = Symbol(`${n}`) as name
+        this.nameLookup.set(sym, `${ri}${JSON.stringify(n)}${nostyle}`)
+        return sym
     }
     name(n: string): name {
         const sym = Symbol(`${n}`) as name

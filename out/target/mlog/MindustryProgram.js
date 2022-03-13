@@ -51,7 +51,9 @@ var _targen = require('../targen');
         return sym
     }
     stri(n) {
-        _common.ice.call(void 0, 'todo: Program: stri()')
+        const sym = Symbol(`${n}`) 
+        this.nameLookup.set(sym, `${_highlight.ri}${JSON.stringify(n)}${_highlight.nostyle}`)
+        return sym
     }
     name(n) {
         const sym = Symbol(`${n}`) 
