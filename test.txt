@@ -1,0 +1,25 @@
+_main printi
+inlining choice: +4 vs -4
+inlining choice for: inline[printi into _init]: true
+todo cond: TestBoolean
+    [0;30m# compiled by qlx[0m
+    [0;35mop [0;36mequal[0m [35m_main::_init::r1[0m [35m1[0m [35m2[0m                 [0m[30m
+    [0;34mjump [0m[33m_main::_init.b_0 [0;36mnotEqual[0m 0 [35m_main::_init::r1[0m [0m[30m
+    [0m[30m
+    [0;31mprint [35m"pass"[0m                                  [0m[30m
+    [0m[30m
+[0m[33m_main::_init.b_2[0m:
+    [0;31mprintflush[0m [1m[32mmessage1[0m                           [0m[30m
+    [0;35mop [0;36msub[0m [35m_main::_init::r5[0m [35m5[0m [35m5[0m                   [0m[30m
+    [0;35mset [1m[32m_main::_init::i[0m [35m3[0m                         [0m[30m
+    [0m[30m
+[0m[33m_main::_init.b_3[0m:
+    [0;31mprint [35m"i: "[0m                                   [0m[30m
+    [0;31mprint[0m [1m[32m_main::_init::i[0m                         [0m[30m
+    [0;31mprintflush[0m [1m[32mmessage1[0m                           [0m[30m
+    [0;35mop [0;36madd[0m [35m_main::_init::r10[0m [1m[32m_main::_init::i[0m [35m1[0m    [0m[30m
+    [0;35mset [1m[32m_main::_init::i[0m [35m_main::_init::r10[0m         [0m[30m
+    [0;34mjump [0m[33m_main::_init.b_3[0m
+[0m[33m_main::_init.b_0[0m:
+    [0;31mprint [35m"???"[0m                                   [0m[30m
+    [0;34mjump [0m[33m_main::_init.b_2[0m

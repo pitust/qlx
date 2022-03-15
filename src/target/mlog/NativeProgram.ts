@@ -14,7 +14,7 @@ interface Operation {
     stores: string[]
     jumpsTo?: string
     exits?: true
-    generate(np: TargetMachine, expand: (n: name) => Register): void
+    generate(np: TargetMachine, expand: (n: name) => Register, move: (out: Register, n: name) => void): void
 }
 
 export class NativeProgram extends Program {
@@ -48,9 +48,9 @@ export class NativeProgram extends Program {
         this.operations.push({
             loads: [this.lookup(left), this.lookup(right)],
             stores: [this.lookup(tgd)],
-            generate(np, nx) {
+            generate(np, nx, mv) {
                 if (np.isTwoAddress()) {
-                    np.move(nx(tgd), nx(left))
+                    mv(nx(tgd), left)
                     np.add(nx(tgd), nx(tgd), nx(right))
                 } else {
                     np.add(nx(tgd), nx(left), nx(right))
@@ -273,6 +273,17 @@ export class NativeProgram extends Program {
                     cache.push(t1)
                     target.movei(t1, inam)
                     return t1
+                }
+                ice('TODO: name lookup')
+            }, (out, nam) => {
+                if (currentMapping.has(nam)) {
+                    target.move(out, currentMapping.get(nam))
+                    return
+                }
+                if (this.immediateNames.has(nam)) {
+                    const inam = this.immediateNames.get(nam)
+                    target.movei(out, inam)
+                    return
                 }
                 ice('TODO: name lookup')
             })

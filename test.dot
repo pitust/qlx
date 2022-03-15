@@ -1,0 +1,26 @@
+digraph PRGControlFlowTrace {
+    rankdir=lr;
+    node [fontname="Handlee"];
+    g_i [label="*i*"]
+    block0 [label="<start>entry|{<gsb0>out i|<op0>in}|<end>exit",shape=record]
+    block1 [label="<start>entry|<end>exit",shape=record]
+    block2 [label="<start>entry|<op0>Print|<op1>Print|{<gsb2>out i|<op2>in}|<op3>Condbr 1|<end>exit",shape=record]
+    block3 [label="<start>entry|<op0>ControlFlowExit|<end>exit",shape=record]
+    ge_0 [label="*3*"]
+    ge_0 -> block0:op0
+    block0:gsb0 -> g_i
+    block0:end -> block1:start
+    block1:end -> block2:start
+    g_i -> block2:op0
+    ge_2 [label="*\\n*"]
+    ge_2 -> block2:op1
+    ge_3 [label="Add",shape=record,label="<res>Add|<left>A|<right>B"]
+    g_i -> ge_3:left
+    ge_4 [label="*1*"]
+    ge_4 -> ge_3:right
+    ge_3:res -> block2:op2
+    block2:gsb2 -> g_i
+    ge_4 -> block2:op3
+    block2:end -> block3:start
+    block3:end -> block4:start
+}
