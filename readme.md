@@ -11,3 +11,9 @@ print call four
 
 printflush getlink 0
 ```
+
+## compiling
+```
+$ npm i -g sucrase
+$ sucrase src -d out -t typescript,imports
+```
