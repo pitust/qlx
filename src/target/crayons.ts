@@ -1,5 +1,17 @@
 import { ice } from './common'
-import { rk_reg, i, o, io, move, resolveMatch, printMatches, insn, ref, opdef, refkind } from './isel'
+import {
+    rk_reg,
+    i,
+    o,
+    io,
+    move,
+    resolveMatch,
+    printMatches,
+    insn,
+    ref,
+    opdef,
+    refkind,
+} from './isel'
 
 export { rk_reg, insn, move, ref } from './isel'
 export const add = Symbol.for('add') as insn
@@ -24,23 +36,22 @@ export const phyreg: (regi: number) => ref = regi => ({ kind: rk_phyreg, id: reg
 export const vreg: (regi: number) => ref = regi => ({ kind: rk_reg, id: regi, type: 'aetheral' })
 
 const operations: opdef[] = [
-    ['mov {1}, {2}',        move,    [o(rk_reg),    i(rk_imm)]],
-    ['mov [rsp+{1}], {2}',  move,    [o(rk_stack),  i(rk_reg)]],
-    ['mov {1}, [rsp+{2}]',  move,    [o(rk_reg),    i(rk_stack)]],
-    ['mov {1}, {2}',        move,    [o(rk_reg),    i(rk_reg)]],
-    ['add {1}, {2}',        add,     [io(rk_reg),   i(rk_imm)]],
-    ['add {1}, {2}',        add,     [io(rk_reg),   i(rk_reg)]],
-    ['add [rsp+{1}], {2}',  add,     [io(rk_stack), i(rk_imm)]],
-    ['add [rsp+{1}], {2}',  add,     [io(rk_stack), i(rk_reg)]],
-    ['; freeze {2} as {1}', freeze,  [o(rk_reg), i(rk_phyreg)]],
-    ['syscall',             syscall, [o(rk_reg), i(rk_reg), i(rk_reg)]],
+    ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_imm)]],
+    ['mov^ {1}, {2}', move, [o(rk_stack), i(rk_reg)]],
+    ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_stack)]],
+    ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_reg)]],
+    ['add^ {1}, {2}', add, [io(rk_reg), i(rk_imm)]],
+    ['add^ {1}, {2}', add, [io(rk_reg), i(rk_reg)]],
+    ['add^ {1}, {2}', add, [io(rk_stack), i(rk_imm)]],
+    ['add^ {1}, {2}', add, [io(rk_stack), i(rk_reg)]],
+    ['; freeze {2} as {1}', freeze, [o(rk_reg), i(rk_phyreg)]],
+    ['syscall^', syscall, [o(rk_reg), i(rk_reg), i(rk_reg)]],
 
-    ['test {2}, {2}',       move,   [o(rk_flags),  i(rk_reg)]],
-    ['l_{1}:',              endbr,  [i(rk_label)]],
-    ['jmp {1}',             br,     [i(rk_label)]],
-    ['jnz {1}',             condbr, [i(rk_label), i(rk_flags)]],
+    ['test^ {2}, {2}', move, [o(rk_flags), i(rk_reg)]],
+    ['l_{1}:', endbr, [i(rk_label)]],
+    ['jmp^ {1}', br, [i(rk_label)]],
+    ['jnz^ {1}', condbr, [i(rk_label), i(rk_flags)]],
 ]
-
 
 const name2type = new Map<string, insn>()
 for (const opd of operations) name2type.set(opd[0], opd[1])
@@ -48,17 +59,26 @@ for (const opd of operations) name2type.set(opd[0], opd[1])
 const rcount = 6 // 6 regs on x86
 
 // general algorithm:
-// we isel everything, then we mostly-k-color extra regs needed, the spillages are put on the stack 
+// we isel everything, then we mostly-k-color extra regs needed, the spillages are put on the stack
 // and we repeat until we are done or die (1024 ops passed and we ICE)
 //
 // we color the stack at the end to collapse it together, to reduce stack use.
 
-function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][] } | { done: true, res: [string, ref[]][] } {
-    let idalloc = Math.max(0, ...matchto.flatMap(e => e[1]).filter(e => e.kind == rk_reg).map(e => e.id)) + 1
+function colorAll(
+    matchto: [insn, ref[]][]
+): { done: false; res: [insn, ref[]][] } | { done: true; res: [string, ref[]][] } {
+    let idalloc =
+        Math.max(
+            0,
+            ...matchto
+                .flatMap(e => e[1])
+                .filter(e => e.kind == rk_reg)
+                .map(e => e.id)
+        ) + 1
     const precolor = new Map<number, number>() // map[reg id] => reg, precolored registers for abi and shit
     const earlycolor = new Set<number>() // set[reg id], color those guys first
     const altmatch_id = new Map<number, number>()
-    
+
     const stores = new Map<number, number[]>()
     const loads = new Map<number, number[]>()
     const frozen = new Set<number>()
@@ -66,7 +86,7 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
     let rootm: [string, ref[]][] = []
     function tryAltMatch(m: [string, ref[]][]) {
         for (const mm of m) {
-            for (const v of mm[1].filter(e=>e.type != 'real')) {
+            for (const v of mm[1].filter(e => e.type != 'real')) {
                 if (v.kind != rk_reg) ice('why would you spill !reg')
                 done = false
                 v.type = 'real'
@@ -76,8 +96,9 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
                 v.id = altmatch_id.get(v.id)
                 earlycolor.add(v.id)
             }
-            for (const v of mm[1].filter(e=>e.kind == rk_reg)) {
-                let is_st = false, is_ld = false
+            for (const v of mm[1].filter(e => e.kind == rk_reg)) {
+                let is_st = false,
+                    is_ld = false
                 if (name2type.get(mm[0]) == add) {
                     if (mm[1][0] == v) is_st = true
                     is_ld = true
@@ -96,17 +117,25 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
                 if (mm[1][0].kind != rk_reg) ice('cannot freeze non-reg!')
                 precolor.set(mm[1][0].id, mm[1][1].id)
             }
-            if (name2type.get(mm[0]) == move && mm[1][0].kind == rk_reg && mm[1][1].kind == rk_stack) {
+            if (
+                name2type.get(mm[0]) == move &&
+                mm[1][0].kind == rk_reg &&
+                mm[1][1].kind == rk_stack
+            ) {
                 frozen.add(mm[1][0].id)
             }
-            if (name2type.get(mm[0]) == move && mm[1][0].kind == rk_stack && mm[1][1].kind == rk_reg) {
+            if (
+                name2type.get(mm[0]) == move &&
+                mm[1][0].kind == rk_stack &&
+                mm[1][1].kind == rk_reg
+            ) {
                 frozen.add(mm[1][1].id)
             }
             rootm.push(mm)
         }
     }
     for (const m of matchto) tryAltMatch(resolveMatch(operations, ...m, 'deep')[1])
-    
+
     const usage: number[][] = rootm.map(() => [])
     for (const [id] of loads) {
         for (let idx of loads.get(id)) {
@@ -122,22 +151,24 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
     const graph = new Map<number, Set<number>>()
     const deleted = new Set<number>()
     function node(id: number) {
-        return new Set([...graph.get(id)].filter(e=>!deleted.has(e)))
+        return new Set([...graph.get(id)].filter(e => !deleted.has(e)))
     }
     function* nodes() {
-        for (const n of graph.keys()) if (!deleted.has(n)) yield [n, node(n)] as [number, Set<number>]
+        for (const n of graph.keys())
+            if (!deleted.has(n)) yield [n, node(n)] as [number, Set<number>]
     }
     for (const quantum of usage) {
         for (const u1 of quantum) {
             if (!graph.has(u1)) graph.set(u1, new Set())
-            for (const u2 of quantum) if (u1 != u2) {
-                if (!graph.has(u2)) graph.set(u2, new Set())
-                graph.get(u1).add(u2)
-                graph.get(u2).add(u1)
-            }
+            for (const u2 of quantum)
+                if (u1 != u2) {
+                    if (!graph.has(u2)) graph.set(u2, new Set())
+                    graph.get(u1).add(u2)
+                    graph.get(u2).add(u1)
+                }
         }
     }
-    
+
     let spillpoint = 1
     const colors = new Map<number, number>()
     const spill = new Map<number, number>()
@@ -166,7 +197,7 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
         for (const [n, e] of nodes()) {
             if (colors.has(n)) continue
             if (spill.has(n)) continue
-            
+
             if (e.size < /*k*/ rcount) {
                 deleted.add(n)
                 kcolor()
@@ -178,7 +209,7 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
         for (const [n, e] of nodes()) {
             if (colors.has(n)) continue
             if (spill.has(n)) continue
-            
+
             deleted.add(n)
             kcolor()
             deleted.delete(n)
@@ -196,7 +227,7 @@ function colorAll(matchto: [insn, ref[]][]): { done: false, res: [insn, ref[]][]
                 arg.kind = rk_stack
                 arg.id = spill.get(arg.id)
             }
-        } 
+        }
     }
     if (done) return { done: true, res: rootm }
     return { done: false, res: rootm.map(e => [name2type.get(e[0]), e[1]]) }
@@ -208,20 +239,35 @@ export function completeGraphColor(target: [insn, ref[]][]) {
         const out: string[] = []
         for (const a of aa) {
             let aq = a[0]
-            for (let i = 0;i < a[1].length;i++) {
+            for (let i = 0; i < a[1].length; i++) {
                 let tid: number = a[1][i].id
-                if (a[1][i].kind == rk_stack) tid *= 8 // stack is *8 because yes.
-                let tval = `${tid}`
-                if (a[1][i].kind == rk_reg) tval = regs[tid]
-                aq = aq.replaceAll(`{${i+1}}`, tval)
+                let tkind: refkind = a[1][i].kind
+                let tval = `<${tkind.description}:${tid}>`
+
+                if (tkind == rk_stack) tval = `[\x005rsp\x00r+\x005${tid * 8}\x00r]\x00r`
+                if (tkind == rk_reg) tval = `\x005${regs[tid]}\x00r`
+                if (tkind == rk_phyreg) tval = `\x005${regs[tid]}\x00r\x000`
+                if (tkind == rk_imm) tval = `\x005${tid}\x00r`
+                if (tkind == rk_label) tval = `${tid}`
+
+                aq = aq.replaceAll(`{${i + 1}}`, tval)
             }
             if (!aq.endsWith(':')) aq = '    ' + aq
+            else aq = '^\x003' + aq
+            {
+                const [pre, ...frag] = aq.split('^')
+                aq = `\x00+\x002${pre}\x00r${frag.join('^')}`
+            }
+            {
+                const [pre, ...frag] = aq.split(';')
+                aq = `\x00+\x002${pre}\x00r\x000${frag.map(e => ';' + e).join('')}`
+            }
             out.push(aq)
         }
         return out
     }
     let current = target
-    for (let i = 0;i < 16;i++) {
+    for (let i = 0; i < 16; i++) {
         const res = colorAll(current)
         if (res.done) {
             return expandAssembly(res.res)

@@ -19,6 +19,7 @@ import {
 } from './optimizer'
 import {
     comment,
+    COMPILED_BY_QLX_BANNER,
     finalizeColors,
     fmt,
     glob,
@@ -313,11 +314,7 @@ export function generateCode(
     units: [SSAUnit, Map<string, SSAUnit>],
     writeCode: (s: string) => void
 ) {
-    let buf = [
-        process.env.QLXCOLOR == 'on'
-            ? '    \x1b[0;30m# compiled by qlx\x1b[0m'
-            : '    # compiled by qlx',
-    ]
+    let buf = [COMPILED_BY_QLX_BANNER('mlog')]
 
     for (const [nm] of units[1]) refcounts.set(`_main::${nm}`, 0)
 

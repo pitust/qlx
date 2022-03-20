@@ -16,6 +16,7 @@ import {
     label,
     endbr,
 } from '../crayons'
+import { finalizeColors } from '../highlight'
 import { Program, name } from '../targen'
 
 export class TestNativeProgram extends Program {
@@ -99,11 +100,9 @@ export class TestNativeProgram extends Program {
         throw new Error('Method not implemented.')
     }
     generate(): string {
-        return completeGraphColor(this.opstream).filter(e => !e.startsWith('    ;')).join('\n')
+        return finalizeColors(completeGraphColor(this.opstream).filter(e => !e.startsWith('    ;')))
     }
-    line(pos: string, source: string): void {
-        
-    }
+    line(pos: string, source: string): void {}
     platformHookEnd(): void {
         const sysno_reg = this.obtainVirtualRegister()
         const ecode_reg = this.obtainVirtualRegister()

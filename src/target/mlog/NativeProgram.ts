@@ -14,7 +14,11 @@ interface Operation {
     stores: string[]
     jumpsTo?: string
     exits?: true
-    generate(np: TargetMachine, expand: (n: name) => Register, move: (out: Register, n: name) => void): void
+    generate(
+        np: TargetMachine,
+        expand: (n: name) => Register,
+        move: (out: Register, n: name) => void
+    ): void
 }
 
 export class NativeProgram extends Program {
@@ -41,7 +45,7 @@ export class NativeProgram extends Program {
             stores: [this.lookup(tgd)],
             generate(np, nx) {
                 np.move(nx(tgd), nx(value))
-            }
+            },
         })
     }
     binop(tgd: name, left: name, op: 'add' | 'lt' | 'eq', right: name): void {
@@ -55,7 +59,7 @@ export class NativeProgram extends Program {
                 } else {
                     np.add(nx(tgd), nx(left), nx(right))
                 }
-            }
+            },
         })
     }
     unop(tgd: name, op: 'invert', arg: name): void {
@@ -126,7 +130,7 @@ export class NativeProgram extends Program {
                 }
                 np.label('__end')
                 np.br('__end')
-            }
+            },
         })
     }
     platformHookPrintValue(p: name): void {
@@ -136,7 +140,7 @@ export class NativeProgram extends Program {
             stores: [],
             generate(np, nx) {
                 np.targetop2('syscall', nx(highimm), nx(p))
-            }
+            },
         })
     }
     platformHookPrintString(p: string): void {
@@ -256,40 +260,45 @@ export class NativeProgram extends Program {
         for (const [nam, regid] of coloring) {
             currentMapping.set(nam, regs[regid - 1])
         }
-        
+
         // step 3: linearly emit all the code into the target
-        for (let i = 0;i < this.operations.length;i++) {
+        for (let i = 0; i < this.operations.length; i++) {
             if (this.labels.find(e => e.index == i)) {
-                this.labels.filter(e => e.index == i).forEach(e => {
-                    target.label(e.name)
-                })
+                this.labels
+                    .filter(e => e.index == i)
+                    .forEach(e => {
+                        target.label(e.name)
+                    })
             }
             let cache: Register[] = []
-            this.operations[i].generate(target, nam => {
-                if (currentMapping.has(nam)) return currentMapping.get(nam)
-                if (this.immediateNames.has(nam)) {
-                    const inam = this.immediateNames.get(nam)
-                    const t1 = target.acquireTemp()
-                    cache.push(t1)
-                    target.movei(t1, inam)
-                    return t1
+            this.operations[i].generate(
+                target,
+                nam => {
+                    if (currentMapping.has(nam)) return currentMapping.get(nam)
+                    if (this.immediateNames.has(nam)) {
+                        const inam = this.immediateNames.get(nam)
+                        const t1 = target.acquireTemp()
+                        cache.push(t1)
+                        target.movei(t1, inam)
+                        return t1
+                    }
+                    ice('TODO: name lookup')
+                },
+                (out, nam) => {
+                    if (currentMapping.has(nam)) {
+                        target.move(out, currentMapping.get(nam))
+                        return
+                    }
+                    if (this.immediateNames.has(nam)) {
+                        const inam = this.immediateNames.get(nam)
+                        target.movei(out, inam)
+                        return
+                    }
+                    ice('TODO: name lookup')
                 }
-                ice('TODO: name lookup')
-            }, (out, nam) => {
-                if (currentMapping.has(nam)) {
-                    target.move(out, currentMapping.get(nam))
-                    return
-                }
-                if (this.immediateNames.has(nam)) {
-                    const inam = this.immediateNames.get(nam)
-                    target.movei(out, inam)
-                    return
-                }
-                ice('TODO: name lookup')
-            })
+            )
             for (const item of cache) target.releaseTemp(item)
         }
-
 
         return target.finalize().join('\n')
     }

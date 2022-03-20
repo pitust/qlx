@@ -1,5 +1,5 @@
-import { ice } from "../common";
-import { Global, Local, Register, TargetMachine } from "../native";
+import { ice } from '../common'
+import { Global, Local, Register, TargetMachine } from '../native'
 
 const rax = Symbol('rax') as Register
 const rbx = Symbol('rbx') as Register
@@ -59,13 +59,13 @@ export class Amd64Machine extends TargetMachine {
         this._code.push(`    xor ${this.rname(dst)}, ${this.rname(right)}`)
     }
     stackRead(dst: Register, src: number): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stackWrite(dst: number, src: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stackFrameExtend(count: number): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     registers(): Register[] {
         return [rax, rbx, rcx, rdx, rdi]
@@ -77,56 +77,56 @@ export class Amd64Machine extends TargetMachine {
         this._code.push(`    jmp ${name}`)
     }
     call(name: string): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     condbr(cond: Register, name: string): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ncondbr(ncond: Register, name: string): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     defineGlobal(name: string): Global {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     defineLocal(name: string): Local {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ldglob(dst: Register, src: Global): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stglob(dst: Global, src: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ldloc(dst: Register, src: Local): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stloc(dst: Local, src: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     add(dst: Register, left: Register, right: Register): void {
         if (dst != left) ice('on x86, dst == left for math!')
         this._code.push(`    add ${this.rname(dst)}, ${this.rname(right)}`)
     }
     sub(dst: Register, left: Register, right: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     eq(dst: Register, left: Register, right: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     neq(dst: Register, left: Register, right: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     lt(dst: Register, left: Register, right: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     gt(dst: Register, left: Register, right: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     neg(dst: Register, src: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop1(op: string, src1: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop2(op: string, src1: Register, src2: Register): void {
         if (op == 'syscall') {
@@ -151,22 +151,21 @@ export class Amd64Machine extends TargetMachine {
         ice('todo top2: ' + op)
     }
     targetop3(dst: Register, op: string, src: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop4(dst: Register, op: string, src: string): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read8(dst: Register, addr: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read16(dst: Register, addr: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read32(dst: Register, addr: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read64(dst: Register, addr: Register): void {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
-
 }

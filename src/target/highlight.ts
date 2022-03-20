@@ -114,11 +114,26 @@ export const fmt = {
 }
 export const selector = '\x00f'
 
+export const COMPILED_BY_QLX_BANNER = (src: 'native' | 'mlog') => {
+    let banner = '    '
+    if (process.env.QLCOLOR == 'on') {
+        if (process.env.QLX_DARKER_COMMENT == 'on') banner += '\x1b[0;30m'
+        else banner += '\x1b[0m;37m'
+    }
+    if (src == 'native') banner += ';'
+    else banner += '#'
+    banner += ' '
+    banner += 'compiled by qlx'
+    if (process.env.QLXCOLOR == 'on') {
+        banner += '\x1b[0m'
+    }
+    return banner
+}
 const colormap = {
     r: '\x1b[0m',
     '+': '\x1b[1m',
     '-': '\x1b[2m',
-    '0': '\x1b[30m',
+    '0': process.env.QLX_DARKER_COMMENT == 'on' ? '\x1b[0;30m' : '\x1b[0;37m',
     '1': '\x1b[31m',
     '2': '\x1b[32m',
     '3': '\x1b[33m',

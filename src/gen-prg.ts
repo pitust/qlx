@@ -399,7 +399,13 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
     function buildExpressionTargetHints(expr: expr, namingHint: name | null) {
         if (!namingHint) namingHint = tg()
         if (allrc.get(expr) == 1) targetHints.set(expr, namingHint)
-        if (expr.type == 'LT' || expr.type == 'Add' || expr.type == 'Sub' || expr.type == 'Eq' || expr.type == 'NEq') {
+        if (
+            expr.type == 'LT' ||
+            expr.type == 'Add' ||
+            expr.type == 'Sub' ||
+            expr.type == 'Eq' ||
+            expr.type == 'NEq'
+        ) {
             buildExpressionTargetHints(expr.left, namingHint)
             buildExpressionTargetHints(expr.right, null)
         }
@@ -421,7 +427,7 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
         }
     }
     for (const blk of bmap.values()) for (const op of blk) buildRootTargetHints(op)
-    
+
     function computeLive() {
         let madeProgress = false
         do {
