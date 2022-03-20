@@ -397,7 +397,6 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
     let watermark = 0
     const targetHints = new Map<expr, name>()
     function buildExpressionTargetHints(expr: expr, namingHint: name | null) {
-        console.log(expr, allrc.get(expr))
         if (!namingHint) namingHint = tg()
         if (allrc.get(expr) == 1) targetHints.set(expr, namingHint)
         if (expr.type == 'LT' || expr.type == 'Add' || expr.type == 'Sub' || expr.type == 'Eq' || expr.type == 'NEq') {
@@ -418,7 +417,7 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
             }
         }
         if (op.type == 'ReturnValueBarrier') {
-            buildExpressionTargetHints(op.expr, program.name2(`ret0`))
+            buildExpressionTargetHints(op.value, program.name2(`ret0`))
         }
     }
     for (const blk of bmap.values()) for (const op of blk) buildRootTargetHints(op)
