@@ -17,6 +17,10 @@ var _targen = require('../targen');
 
 
 
+
+
+
+
  class NativeProgram extends _targen.Program {constructor(...args) { super(...args); NativeProgram.prototype.__init.call(this);NativeProgram.prototype.__init2.call(this);NativeProgram.prototype.__init3.call(this);NativeProgram.prototype.__init4.call(this);NativeProgram.prototype.__init5.call(this); }
     __init() {this.immediateNames = new Map()}
     __init2() {this.variableNames = new Map()}
@@ -41,21 +45,21 @@ var _targen = require('../targen');
             stores: [this.lookup(tgd)],
             generate(np, nx) {
                 np.move(nx(tgd), nx(value))
-            }
+            },
         })
     }
     binop(tgd, left, op, right) {
         this.operations.push({
             loads: [this.lookup(left), this.lookup(right)],
             stores: [this.lookup(tgd)],
-            generate(np, nx) {
+            generate(np, nx, mv) {
                 if (np.isTwoAddress()) {
-                    np.move(nx(tgd), nx(left))
+                    mv(nx(tgd), left)
                     np.add(nx(tgd), nx(tgd), nx(right))
                 } else {
                     np.add(nx(tgd), nx(left), nx(right))
                 }
-            }
+            },
         })
     }
     unop(tgd, op, arg) {
@@ -126,7 +130,7 @@ var _targen = require('../targen');
                 }
                 np.label('__end')
                 np.br('__end')
-            }
+            },
         })
     }
     platformHookPrintValue(p) {
@@ -136,7 +140,7 @@ var _targen = require('../targen');
             stores: [],
             generate(np, nx) {
                 np.targetop2('syscall', nx(highimm), nx(p))
-            }
+            },
         })
     }
     platformHookPrintString(p) {
@@ -256,29 +260,45 @@ var _targen = require('../targen');
         for (const [nam, regid] of coloring) {
             currentMapping.set(nam, regs[regid - 1])
         }
-        
+
         // step 3: linearly emit all the code into the target
-        for (let i = 0;i < this.operations.length;i++) {
+        for (let i = 0; i < this.operations.length; i++) {
             if (this.labels.find(e => e.index == i)) {
-                this.labels.filter(e => e.index == i).forEach(e => {
-                    target.label(e.name)
-                })
+                this.labels
+                    .filter(e => e.index == i)
+                    .forEach(e => {
+                        target.label(e.name)
+                    })
             }
             let cache = []
-            this.operations[i].generate(target, nam => {
-                if (currentMapping.has(nam)) return currentMapping.get(nam)
-                if (this.immediateNames.has(nam)) {
-                    const inam = this.immediateNames.get(nam)
-                    const t1 = target.acquireTemp()
-                    cache.push(t1)
-                    target.movei(t1, inam)
-                    return t1
+            this.operations[i].generate(
+                target,
+                nam => {
+                    if (currentMapping.has(nam)) return currentMapping.get(nam)
+                    if (this.immediateNames.has(nam)) {
+                        const inam = this.immediateNames.get(nam)
+                        const t1 = target.acquireTemp()
+                        cache.push(t1)
+                        target.movei(t1, inam)
+                        return t1
+                    }
+                    _common.ice.call(void 0, 'TODO: name lookup')
+                },
+                (out, nam) => {
+                    if (currentMapping.has(nam)) {
+                        target.move(out, currentMapping.get(nam))
+                        return
+                    }
+                    if (this.immediateNames.has(nam)) {
+                        const inam = this.immediateNames.get(nam)
+                        target.movei(out, inam)
+                        return
+                    }
+                    _common.ice.call(void 0, 'TODO: name lookup')
                 }
-                _common.ice.call(void 0, 'TODO: name lookup')
-            })
+            )
             for (const item of cache) target.releaseTemp(item)
         }
-
 
         return target.finalize().join('\n')
     }

@@ -59,13 +59,13 @@ let t2used = false
         this._code.push(`    xor ${this.rname(dst)}, ${this.rname(right)}`)
     }
     stackRead(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stackWrite(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stackFrameExtend(count) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     registers() {
         return [rax, rbx, rcx, rdx, rdi]
@@ -77,56 +77,56 @@ let t2used = false
         this._code.push(`    jmp ${name}`)
     }
     call(name) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     condbr(cond, name) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ncondbr(ncond, name) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     defineGlobal(name) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     defineLocal(name) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ldglob(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stglob(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     ldloc(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     stloc(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     add(dst, left, right) {
         if (dst != left) _common.ice.call(void 0, 'on x86, dst == left for math!')
         this._code.push(`    add ${this.rname(dst)}, ${this.rname(right)}`)
     }
     sub(dst, left, right) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     eq(dst, left, right) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     neq(dst, left, right) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     lt(dst, left, right) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     gt(dst, left, right) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     neg(dst, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop1(op, src1) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop2(op, src1, src2) {
         if (op == 'syscall') {
@@ -151,22 +151,21 @@ let t2used = false
         _common.ice.call(void 0, 'todo top2: ' + op)
     }
     targetop3(dst, op, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     targetop4(dst, op, src) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read8(dst, addr) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read16(dst, addr) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read32(dst, addr) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
     read64(dst, addr) {
-        throw new Error("Method not implemented.");
+        throw new Error('Method not implemented.')
     }
-
 } exports.Amd64Machine = Amd64Machine;

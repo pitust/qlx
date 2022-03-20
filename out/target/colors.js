@@ -82,11 +82,13 @@ function randomize(seed) {
 
     for (let i = 0; i < count; i++) {
         const color = hsv_to_rgb(step * i, 0.82, 0.97)
-        const finalColor = '#' + [
-            Math.floor(color.r).toString(16).padStart(2, '0'),
-            Math.floor(color.g).toString(16).padStart(2, '0'),
-            Math.floor(color.b).toString(16).padStart(2, '0'),
-        ].join('')
+        const finalColor =
+            '#' +
+            [
+                Math.floor(color.r).toString(16).padStart(2, '0'),
+                Math.floor(color.g).toString(16).padStart(2, '0'),
+                Math.floor(color.b).toString(16).padStart(2, '0'),
+            ].join('')
         const midpoint = seed % colors.length
         colors = [colors.slice(0, midpoint), [finalColor], colors.slice(midpoint)].flat()
         seed = randomize(seed)

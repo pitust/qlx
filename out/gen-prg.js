@@ -395,6 +395,39 @@ function computeExpressionReferences(blkz) {
             program.name2(`t.${ti++}`)
     )(1)
     let watermark = 0
+    const targetHints = new Map()
+    function buildExpressionTargetHints(expr, namingHint) {
+        if (!namingHint) namingHint = tg()
+        if (allrc.get(expr) == 1) targetHints.set(expr, namingHint)
+        if (
+            expr.type == 'LT' ||
+            expr.type == 'Add' ||
+            expr.type == 'Sub' ||
+            expr.type == 'Eq' ||
+            expr.type == 'NEq'
+        ) {
+            buildExpressionTargetHints(expr.left, namingHint)
+            buildExpressionTargetHints(expr.right, null)
+        }
+        if (expr.type == 'Negate') {
+            buildExpressionTargetHints(expr.value, namingHint)
+        }
+    }
+    function buildRootTargetHints(op) {
+        if (op.type == 'GlobalSynchronizationBarrier') {
+            buildExpressionTargetHints(op.expr, program.name(`v.${op.glb}`))
+        }
+        if (op.type == 'CallSynchronisationBarrier') {
+            for (let i = 0; i < op.args.length; i++) {
+                buildExpressionTargetHints(op.args[i], program.name2(`a${i}`))
+            }
+        }
+        if (op.type == 'ReturnValueBarrier') {
+            buildExpressionTargetHints(op.value, program.name2(`ret0`))
+        }
+    }
+    for (const blk of bmap.values()) for (const op of blk) buildRootTargetHints(op)
+
     function computeLive() {
         let madeProgress = false
         do {
@@ -419,7 +452,7 @@ function computeExpressionReferences(blkz) {
                 }
                 if (e.type == 'Negate') {
                     if (!completed.has(e.value)) continue
-                    const name = tg()
+                    const name = _nullishCoalesce(targetHints.get(e), () => ( tg()))
                     program.binop(name, program.imm(0), 'eq', completed.get(e.value))
                     completed.set(e, name)
                     madeProgress = true
@@ -428,7 +461,7 @@ function computeExpressionReferences(blkz) {
                 if (e.type == 'LT' || e.type == 'Add') {
                     if (!completed.has(e.left)) continue
                     if (!completed.has(e.right)) continue
-                    const name = tg()
+                    const name = _nullishCoalesce(targetHints.get(e), () => ( tg()))
                     const names = {
                         LT: 'lt',
                         Add: 'add',

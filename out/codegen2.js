@@ -20,6 +20,7 @@ var _middlegen = require('./middlegen');
 var _optimizer = require('./optimizer');
 var _api = require('./target/api');
 var _common = require('./target/common');
+var _highlight = require('./target/highlight');
 
 
 const refcounts = new Map()
@@ -232,11 +233,7 @@ function generateUnit(mod, fn, unit, writeCode) {
     units,
     writeCode
 ) {
-    let buf = [
-        process.env.QLXCOLOR == 'on'
-            ? '    \x1b[0;30m# compiled by qlx\x1b[0m'
-            : '    # compiled by qlx',
-    ]
+    let buf = [_highlight.COMPILED_BY_QLX_BANNER.call(void 0, 'mlog')]
 
     for (const [nm] of units[1]) refcounts.set(`_main::${nm}`, 0)
 

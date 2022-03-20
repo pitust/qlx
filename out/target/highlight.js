@@ -114,11 +114,26 @@ const kwregex = new RegExp('(?<=\\s|^)(' + kw.join('|') + ')(?=\\s|$)', 'g')
 }; exports.fmt = fmt
  const selector = '\x00f'; exports.selector = selector
 
+ const COMPILED_BY_QLX_BANNER = (src) => {
+    let banner = '    '
+    if (process.env.QLCOLOR == 'on') {
+        if (process.env.QLX_DARKER_COMMENT == 'on') banner += '\x1b[0;30m'
+        else banner += '\x1b[0m;37m'
+    }
+    if (src == 'native') banner += ';'
+    else banner += '#'
+    banner += ' '
+    banner += 'compiled by qlx'
+    if (process.env.QLXCOLOR == 'on') {
+        banner += '\x1b[0m'
+    }
+    return banner
+}; exports.COMPILED_BY_QLX_BANNER = COMPILED_BY_QLX_BANNER
 const colormap = {
     r: '\x1b[0m',
     '+': '\x1b[1m',
     '-': '\x1b[2m',
-    '0': '\x1b[30m',
+    '0': process.env.QLX_DARKER_COMMENT == 'on' ? '\x1b[0;30m' : '\x1b[0;37m',
     '1': '\x1b[31m',
     '2': '\x1b[32m',
     '3': '\x1b[33m',
