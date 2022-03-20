@@ -39,9 +39,9 @@ export function resolveMatch(operations: opdef[], opkind: insn, opargs: ref[], d
                 // resolve by prepending a matching move transform
                 try {
                     const middle = { kind: targetc.kind, id: aether, type: 'aetheral' }
-                    const [tscore, tchoices] = resolveMatch(operations, move, [middle, realc], 'shallow')
+                    const [tscore, tchoices] = resolveMatch(operations, move, [{...middle}, realc], 'shallow')
                     score += tscore
-                    ochoice[1][i] = middle
+                    ochoice[1][i] = {...middle}
                     choices = [...tchoices, ...choices]
                     al2.push(aether)
                     continue
@@ -50,9 +50,9 @@ export function resolveMatch(operations: opdef[], opkind: insn, opargs: ref[], d
                 // resolve by appending a matching move transform
                 try {
                     const middle = { kind: targetc.kind, id: aetherkind++, type: 'aetheral' }
-                    const [tscore, tchoices] = resolveMatch(operations, move, [realc, middle], 'shallow')
+                    const [tscore, tchoices] = resolveMatch(operations, move, [realc, {...middle}], 'shallow')
                     score += tscore
-                    ochoice[1][i] = middle
+                    ochoice[1][i] = {...middle}
                     choices = [...choices, ...tchoices]
                     al2.push(aether)
                     continue
@@ -61,10 +61,10 @@ export function resolveMatch(operations: opdef[], opkind: insn, opargs: ref[], d
                 // resolve by prepending then appending a matching move transform
                 try {
                     const middle = { kind: targetc.kind, id: aetherkind++, type: 'aetheral' }
-                    const [tscore, tchoices] = resolveMatch(operations, move, [realc, middle], 'shallow')
-                    const [tscore2, tchoices2] = resolveMatch(operations, move, [middle, realc], 'shallow')
+                    const [tscore, tchoices] = resolveMatch(operations, move, [realc, {...middle}], 'shallow')
+                    const [tscore2, tchoices2] = resolveMatch(operations, move, [{...middle}, realc], 'shallow')
                     score += tscore + tscore2
-                    ochoice[1][i] = middle
+                    ochoice[1][i] = {...middle}
                     choices = [...tchoices2, ...choices, ...tchoices]
                     al2.push(aether)
                     continue
