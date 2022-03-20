@@ -133,7 +133,7 @@ const colormap = {
     r: '\x1b[0m',
     '+': '\x1b[1m',
     '-': '\x1b[2m',
-    '0': process.env.QLX_DARKER_COMMENT == 'on' ? '\x1b[0;30m' : '\x1b[0;37m',
+    '0': process.env.QLX_DARKER_COMMENT == 'on' ? '\x1b[0;30m' : '\x1b[0;1;30m',
     '1': '\x1b[31m',
     '2': '\x1b[32m',
     '3': '\x1b[33m',

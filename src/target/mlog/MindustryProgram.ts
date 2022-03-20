@@ -71,7 +71,7 @@ export class MindustryProgram extends Program {
         return sym
     }
     call(name: string): void {
-        this.emit(`    ${fmt.cflow}op ${selector}add @counter ${ri}2${nostyle}`)
+        this.emit(`    ${fmt.cflow}op ${selector}add ${ri}lr.${name} ${selector}@counter ${ri}2${nostyle}`)
         this.emit(`    ${fmt.cflow}jump ${label}${name} ${selector}always${nostyle}`)
     }
     retv(name: string): void {

@@ -607,7 +607,7 @@ function performInlining(
                     for (const op of blk.ops) {
                         if (op.op == _middlegen.Opcode.Return || op.op == _middlegen.Opcode.ReturnVoid) {
                             if (op.op == _middlegen.Opcode.Return) {
-                                opstream2.push({
+                                if (retvalue) opstream2.push({
                                     pos: op.pos,
                                     meta: op.meta,
                                     op: _middlegen.Opcode.Move,

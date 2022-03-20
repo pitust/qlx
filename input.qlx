@@ -1,4 +1,3 @@
+use foo
 
-let i = 3
-let j = + 3 i
-let k = + i j
+foo::func/0

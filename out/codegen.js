@@ -126,26 +126,26 @@ function generateUnit(mod, fn, unit, writeCode) {
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     code.push(
-                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${mod}::${
+                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${
                             op.args[1]
                         }${_highlight.nostyle} ${immref(op.args[i + 2])}`
                     )
                 }
                 code.push(
-                    `    ${_highlight.fmt.assign}op ${_highlight.selector}add ${_highlight.ri}lr.${mod}::${op.args[1]} ${_highlight.selector}@counter ${_highlight.ri}1${_highlight.nostyle}`
+                    `    ${_highlight.fmt.assign}op ${_highlight.selector}add ${_highlight.ri}lr.${op.args[1]} ${_highlight.selector}@counter ${_highlight.ri}1${_highlight.nostyle}`
                 )
                 code.push(
-                    `    ${_highlight.fmt.assign}jump ${_highlight.label}fn.${mod}::${op.args[1]} ${_highlight.selector}always${_highlight.nostyle}`
+                    `    ${_highlight.fmt.assign}jump ${_highlight.label}fn.${op.args[1]} ${_highlight.selector}always${_highlight.nostyle}`
                 )
                 if (op.args[0]) {
                     code.push(
-                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv.${mod}::${op.args[1]}`
+                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv._glob::${op.args[1]}`
                     )
                 }
-                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
+                functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 code.push(
-                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}${mod}::_init::${
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}_glob::_init::${
                         op.args[1]
                     }${_highlight.nostyle}`
                 )
@@ -336,11 +336,13 @@ function generateUnit(mod, fn, unit, writeCode) {
     let buffers = new Map()
     for (const [nm, u] of units[1]) {
         let buf1 = []
-        buffers.set(`_main::${nm}`, buf1)
+        buffers.set(`${nm}`, buf1)
         buf1.push(
-            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`
+            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`
         )
-        generateUnit('_main', nm, u, code => {
+        const mod = nm.split('::')
+        const fn = mod.pop()
+        generateUnit(mod.join('::'), fn, u, code => {
             buf1.push(code)
         })
     }

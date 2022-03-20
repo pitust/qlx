@@ -521,7 +521,7 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
             } else if (op.type == 'ArgumentStorageBarrier') {
                 program.move(program.name(`v.${op.variable}`), program.name2(`a${op.index}`))
             } else if (op.type == 'ReturnValueBarrier') {
-                program.move(program.name(`ret0`), getex(op.value))
+                program.move(program.name2(`ret0`), getex(op.value))
             } else if (op.type == 'CallSynchronisationBarrier') {
                 for (let i = 0; i < op.args.length; i++) {
                     program.move(program.name2(`a${i}`), getex(op.args[i]))

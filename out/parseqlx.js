@@ -59,8 +59,10 @@ class Lexeme {
             s = s.slice(1)
             continue
         }
-        if (/^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.test(s)) {
-            const lexeme = /^(\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/.exec(s)[0]
+        const REGEX =
+            /^(([a-zA-Z_][a-zA-Z_0-9]*::)*[a-zA-Z_][a-zA-Z_0-9]*(\/[0-9]+)?|\:?[a-zA-Z_0-9@{}\*\/\+\-=\.!<>]+|"([^\s"]| )*")/
+        if (REGEX.test(s)) {
+            const lexeme = REGEX.exec(s)[0]
             lexemes.push(
                 new Lexeme(line, column, lexeme, stp[line - 1], [column - 1, lexeme.length])
             )

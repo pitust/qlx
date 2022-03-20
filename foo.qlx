@@ -1,0 +1,4 @@
+
+fn func { } -> float
+    return 3
+end

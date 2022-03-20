@@ -104,6 +104,7 @@ var PrimitiveType; (function (PrimitiveType) {
 
 
 
+
  const getreg = (
     i => () =>
         i++
@@ -130,6 +131,15 @@ function construct(ctx, type) {
     }
     return 0
 }
+function expand(ctx, name) {
+    if (name.includes('::')) {
+        return name
+    }
+    if (ctx.names.has(name)) {
+        return ctx.moduleName + '::' + name
+    }
+    console.log('uhh, unsure about name', name)
+}
 function doGenerateExpr(node, ctx, isCallStatement = false) {
     function pushOp(op) {
         ctx.currentBlock.ops.push(op)
@@ -140,7 +150,7 @@ function doGenerateExpr(node, ctx, isCallStatement = false) {
     }
     if (node.type == 'callnode') {
         const [tgdobj, callobj] = node.children
-        const tgd = thestr(tgdobj)
+        const tgd = expand(ctx, thestr(tgdobj))
         const callargs = theast(callobj).children
         const reg = exports.getreg.call(void 0, )
 
@@ -218,7 +228,7 @@ function doGenerateExpr(node, ctx, isCallStatement = false) {
         return { reg }
     }
     if (node.type == 'new') {
-        return construct(ctx, exports.name2type.get(thestr(node.children[0])))
+        return construct(ctx, exports.name2type.get(expand(ctx, thestr(node.children[0]))))
     }
     if (node.type == 'dot') {
         const tgd = doGenerateExpr(theast(node.children[0]), ctx)
@@ -438,17 +448,18 @@ function doGenerateSSA(node, ctx) {
         const argc = +thestr(node.children[2])
         const ret = doGenerateType(theast(node.children[3]))
         if (argc) args.push(...blk.children.slice(0, argc).map(theast))
+        ctx.names.add(name)
         pushOp({
             meta,
             pos: node.pos,
             op: Opcode.Function,
             args: [
-                name,
+                ctx.moduleName + '::' + name,
                 ret,
                 ...args.map(e => doGenerateType(theast(theast(theast(e).children[0]).children[1]))),
             ],
         })
-        functionGenerationQueue.add(node)
+        functionGenerationQueue.add([ctx.moduleName, node])
         return
     }
     if (node.type == 'callnode') {
@@ -552,6 +563,15 @@ function doGenerateSSA(node, ctx) {
         exports.name2type.set(thestr(node.children[0]), ct)
         return
     }
+    if (node.type == 'mod') {
+        // ctx.moduleName
+        const nam = ctx.names
+        ctx.names = new Set()
+        ctx.moduleName = thestr(node.children[0])
+        doGenerateSSA(theast(node.children[1]), ctx)
+        ctx.names = nam
+        return
+    }
 
     console.log(node)
     _assert2.default.call(void 0, false, 'todo: handle ' + node.type)
@@ -618,6 +638,7 @@ function doGenerateSSA(node, ctx) {
             isGlobal: g,
             blocks: new Set([blk]),
             glob: new Set(),
+            names: new Set(),
         }
 
         doGenerateSSA(body, ctx)
@@ -643,15 +664,15 @@ function doGenerateSSA(node, ctx) {
     }
     const ast = _parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, file).toString())
     if (exports.options.dump_ast) _dumpast.dumpAstNode.call(void 0, ast)
-    const root = generateUnit(true, '_init', ast)
+    const root = generateUnit(true, '_main::_init', ast)
     const cu = new Map()
-    for (const n of functionGenerationQueue) {
+    for (const [mod, n] of functionGenerationQueue) {
         const name = thestr(n.children[0])
         const body = theast(n.children[1])
-        cu.set(name, generateUnit(false, name, body))
-        if (theast(n.children[2]).type == 'voiddty') {
-            cu.get(name)
-        }
+        cu.set(mod + '::' + name, generateUnit(false, name, body))
+        // if (theast(n.children[2]).type == 'voiddty') {
+        //     cu.get(name)
+        // }
     }
 
     return [root, cu]

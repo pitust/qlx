@@ -106,11 +106,11 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                         immref(op.args[i + 2])
                     )
                 }
-                program.call(`${mod}::${op.args[1]}`)
+                program.call(`${op.args[1]}`)
                 if (op.args[0]) {
                     program.move(immref(op.args[0]), program.name2(`${mod}::${op.args[1]}-ret0`))
                 }
-                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
+                functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 program.move(immref(op.args[0]), program.name(`${mod}::_init::${op.args[1]}`))
             } else if (op.op == Opcode.LdLoc) {
@@ -255,11 +255,13 @@ export function generateCode(
     let buffers = new Map<string, string[]>()
     for (const [nm, u] of units[1]) {
         let buf1 = []
-        buffers.set(`_main::${nm}`, buf1)
+        buffers.set(`${nm}`, buf1)
         buf1.push(
             process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`
         )
-        generateUnit('_main', nm, u, code => {
+        const mod = nm.split('::')
+        const fn = mod.pop()
+        generateUnit(mod.join('::'), fn, u, code => {
             buf1.push(code)
         })
     }

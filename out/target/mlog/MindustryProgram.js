@@ -71,7 +71,7 @@ var _targen = require('../targen');
         return sym
     }
     call(name) {
-        this.emit(`    ${_highlight.fmt.cflow}op ${_highlight.selector}add @counter ${_highlight.ri}2${_highlight.nostyle}`)
+        this.emit(`    ${_highlight.fmt.cflow}op ${_highlight.selector}add ${_highlight.ri}lr.${name} ${_highlight.selector}@counter ${_highlight.ri}2${_highlight.nostyle}`)
         this.emit(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${name} ${_highlight.selector}always${_highlight.nostyle}`)
     }
     retv(name) {

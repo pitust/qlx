@@ -324,7 +324,7 @@ function continueBlockCheck(
                 const tgd = op.args[1]
                 const callargs = op.args.slice(2)
                 if (!gFn.has(tgd)) {
-                    console.log(`error: ${op.pos}: cannot find function ${tgd}/${args.length}`)
+                    console.log(`error: ${op.pos}: cannot find function ${tgd}/${callargs.length}`)
                     checked = false
                     return
                 }

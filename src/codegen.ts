@@ -126,26 +126,26 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             } else if (op.op == Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     code.push(
-                        `    ${fmt.assign}set ${ri}arg-${i}.${mod}::${
+                        `    ${fmt.assign}set ${ri}arg-${i}.${
                             op.args[1]
                         }${nostyle} ${immref(op.args[i + 2])}`
                     )
                 }
                 code.push(
-                    `    ${fmt.assign}op ${selector}add ${ri}lr.${mod}::${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
+                    `    ${fmt.assign}op ${selector}add ${ri}lr.${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
                 )
                 code.push(
-                    `    ${fmt.assign}jump ${label}fn.${mod}::${op.args[1]} ${selector}always${nostyle}`
+                    `    ${fmt.assign}jump ${label}fn.${op.args[1]} ${selector}always${nostyle}`
                 )
                 if (op.args[0]) {
                     code.push(
-                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv.${mod}::${op.args[1]}`
+                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv._glob::${op.args[1]}`
                     )
                 }
-                functionCallReferenceSet.add(`${mod}::${op.args[1]}`)
+                functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}${mod}::_init::${
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_glob::_init::${
                         op.args[1]
                     }${nostyle}`
                 )
@@ -336,11 +336,13 @@ export function generateCode(
     let buffers = new Map<string, string[]>()
     for (const [nm, u] of units[1]) {
         let buf1 = []
-        buffers.set(`_main::${nm}`, buf1)
+        buffers.set(`${nm}`, buf1)
         buf1.push(
-            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn._main::${nm}\x1b[0m:` : `fn._main::${nm}:`
+            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`
         )
-        generateUnit('_main', nm, u, code => {
+        const mod = nm.split('::')
+        const fn = mod.pop()
+        generateUnit(mod.join('::'), fn, u, code => {
             buf1.push(code)
         })
     }
