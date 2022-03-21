@@ -1,0 +1,11 @@
+// > run(5000, 2)
+// > time(() => { for (let i = 0;i < 100;i++) expect(`i: ${i+3}\n`) })
+
+let i = 3
+while true do
+  printf "i: {}\n" i
+  printflush @qlxconsole
+  i = + i 1
+end
+
+

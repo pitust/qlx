@@ -1,3 +1,4 @@
+import { deserialize, serialize } from 'v8'
 import {
     options,
     SSAUnit,
@@ -327,8 +328,7 @@ function getParentSet(blocks: SSABlock[]): Map<SSABlock, Set<SSABlock>> {
     return m
 }
 function deepClone<T>(t: T) {
-    // @ts-ignore
-    return structuredClone(t) // note: this is quite slow iirc
+    return deserialize(serialize(t))
 }
 function propagateConstants(blocks: SSABlock[]): boolean {
     let replaced: boolean = false
@@ -691,6 +691,7 @@ const opcost = {
     StInitGlob: 1,
     TargetOp: 1,
     StGlob: 1,
+    LdGlob: 1,
     StLoc: 1,
     LdLoc: 1,
     Move: 1,

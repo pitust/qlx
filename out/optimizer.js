@@ -1,4 +1,5 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }
+"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }var _v8 = require('v8');
+
 
 
 
@@ -327,8 +328,7 @@ function getParentSet(blocks) {
     return m
 }
 function deepClone(t) {
-    // @ts-ignore
-    return structuredClone(t) // note: this is quite slow iirc
+    return _v8.deserialize.call(void 0, _v8.serialize.call(void 0, t))
 }
 function propagateConstants(blocks) {
     let replaced = false
@@ -691,6 +691,7 @@ const opcost = {
     StInitGlob: 1,
     TargetOp: 1,
     StGlob: 1,
+    LdGlob: 1,
     StLoc: 1,
     LdLoc: 1,
     Move: 1,

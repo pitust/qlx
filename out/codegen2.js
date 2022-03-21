@@ -134,6 +134,12 @@ function generateUnit(mod, fn, unit, writeCode) {
                 const top = `${op.args[0]}`
                 if (top == 'print.direct') {
                     program.platformHookPrintString(JSON.parse(`${op.args[1]}`))
+                } else if (top == 'print.ref') {
+                    program.platformHookPrintValue(immref(op.args[1]))
+                } else if (top == 'print.flush') {
+                    program.platformHookPrintFlush(immref(op.args[1]))
+                } else if (top == '_lookupblox') {
+                    program.move(immref(op.args[1]), program.stri(`${op.args[2]}`))
                 } else {
                     _common.ice.call(void 0, `todo: targetop ${top}`)
                 }

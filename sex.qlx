@@ -1,7 +1,0 @@
-let i = 3
-while true do
-  printf "{}\n" i
-  i = + i 1
-end
-
-

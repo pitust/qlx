@@ -107,6 +107,9 @@ var _targen = require('../targen');
     platformHookPrintString(p) {
         this.emit(`    ${_highlight.fmt.rawio}print ${_highlight.ri}${JSON.stringify(p)}${_highlight.nostyle}`)
     }
+    platformHookPrintFlush(p) {
+        this.emit(`    ${_highlight.fmt.rawio}printflush${_highlight.nostyle} ${this.lookup(p)}`)
+    }
 
     generate() {
         return _highlight.finalizeColors.call(void 0, this._code)

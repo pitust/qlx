@@ -139,13 +139,13 @@ function generateUnit(mod, fn, unit, writeCode) {
                 )
                 if (op.args[0]) {
                     code.push(
-                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv._glob::${op.args[1]}`
+                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv._main::${op.args[1]}`
                     )
                 }
                 functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 code.push(
-                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}_glob::_init::${
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}_main::_init::${
                         op.args[1]
                     }${_highlight.nostyle}`
                 )
@@ -229,14 +229,14 @@ function generateUnit(mod, fn, unit, writeCode) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${target}${_highlight.nostyle}`)
+                code.push(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}always${_highlight.nostyle}`)
             } else code.push(`    ${_highlight.comment}# falls through`)
         } else if (blk.cond == _middlegen.JumpCond.AlwaysNoMerge) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.comment}# ${_highlight.ri}note: this should never happen!`
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}always ${_highlight.comment}# ${_highlight.ri}note: this should never happen!`
                 )
             } else code.push(`    ${_highlight.comment}# (call block falls through)`)
         } else if (blk.cond == _middlegen.JumpCond.TestBoolean) {

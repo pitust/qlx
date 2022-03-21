@@ -325,6 +325,8 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
                 bmap.get(blk).push({ type: 'Print', expr: String(JSON.parse(`${op.args[1]}`)) })
             } else if (op.op == Opcode.BinOp && op.args[1] == 'add') {
                 registerBindingTable.set(reg(op.args[0]), Add(gexpr(op.args[2]), gexpr(op.args[3])))
+            } else if (op.op == Opcode.BinOp && op.args[1] == 'sub') {
+                registerBindingTable.set(reg(op.args[0]), Sub(gexpr(op.args[2]), gexpr(op.args[3])))
             } else if (op.op == Opcode.BinOp && op.args[1] == 'lessThan') {
                 registerBindingTable.set(reg(op.args[0]), LT(gexpr(op.args[2]), gexpr(op.args[3])))
             } else if (op.op == Opcode.End) {
@@ -458,13 +460,14 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
                     madeProgress = true
                     continue
                 }
-                if (e.type == 'LT' || e.type == 'Add') {
+                if (e.type == 'LT' || e.type == 'Add' || e.type == 'Sub') {
                     if (!completed.has(e.left)) continue
                     if (!completed.has(e.right)) continue
                     const name = targetHints.get(e) ?? tg()
                     const names = {
                         LT: 'lt',
                         Add: 'add',
+                        Sub: 'sub'
                     } as const
                     program.binop(
                         name,

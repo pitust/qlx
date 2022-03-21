@@ -139,13 +139,13 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 )
                 if (op.args[0]) {
                     code.push(
-                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv._glob::${op.args[1]}`
+                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv._main::${op.args[1]}`
                     )
                 }
                 functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_glob::_init::${
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_main::_init::${
                         op.args[1]
                     }${nostyle}`
                 )
@@ -229,14 +229,14 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
-                code.push(`    ${fmt.cflow}jump ${label}${target}${nostyle}`)
+                code.push(`    ${fmt.cflow}jump ${label}${target} ${selector}always${nostyle}`)
             } else code.push(`    ${comment}# falls through`)
         } else if (blk.cond == JumpCond.AlwaysNoMerge) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${fmt.cflow}jump ${label}${target} ${comment}# ${ri}note: this should never happen!`
+                    `    ${fmt.cflow}jump ${label}${target} ${selector}always ${comment}# ${ri}note: this should never happen!`
                 )
             } else code.push(`    ${comment}# (call block falls through)`)
         } else if (blk.cond == JumpCond.TestBoolean) {

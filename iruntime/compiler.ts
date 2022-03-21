@@ -34,9 +34,14 @@ function parseCode(s: string) {
                     tk.push('')
                     mode = 1
                 } else if (mode == 3) {
-                    tk.push('"')
+                    tk[tk.length - 1] += '"'
                     mode = 2
                 }
+                continue
+            }
+            if (mode == 3) {
+                tk[tk.length - 1] += c
+                mode = 2
                 continue
             }
             if (c == '\\' && mode == 2) {
@@ -57,12 +62,12 @@ function parseCode(s: string) {
             err('unterminated string literal')
         }
         if (tk[tk.length - 1] == '') tk.pop()
-        opcodes.push(tk)
+        if (tk.length) opcodes.push(tk)
     }
     return { opcodes, symbolMap }
 }
 
-function compile<VMValue>(srccode: string) {
+export function compile<VMValue extends number | string>(srccode: string) {
     let js = ''
     const { opcodes, symbolMap } = parseCode(srccode)
     function emit(s: string) {
@@ -71,18 +76,19 @@ function compile<VMValue>(srccode: string) {
 
     let pc = 0
     function afterRunOp() {
-        emit(`if(--ipt)return {pc,vars};break;`)
+        emit(`if(!--ipt)return {pc,vars};break;`)
         pc++
     }
 
     emit(`while(1)switch(pc++){`)
     for (const opline of opcodes) {
+        if (!opline.length) continue
         emit(`case ${pc}:`)
         const opc = opline[0]
         const args = opline.slice(1).map(e => {
+            if (/^[0-9\.]+$/.test(e)) return `${e}`
             if (/^@?[a-zA-Z0-9_:\.]+$/.test(e)) return `vars.get('${e}')`
             if (/^".+"$/.test(e)) return `${JSON.stringify(JSON.parse(e))}`
-            if (/^[0-9\.]+$/.test(e)) return `${e}`
             err('bad arg ' + e)
         })
         const a0 = args[0],
@@ -92,11 +98,12 @@ function compile<VMValue>(srccode: string) {
             print: () => `vmcb.p(${a0});`,
             printflush: () => `vmcb.pf(${a0});`,
             jump: () =>
-                `if(vmcb.c_${opline[2]}(${args.slice(2)},0,0,0))pc=${
+                `if(vmcb.c_${opline[2]}(${[...args.slice(1), 0, 0, 0].slice(2)}))pc=${
                     symbolMap.get(opline[1]) ?? 0
                 };`,
-            op: () => `vars.set(${args[2]},vmcb.o_${args[1]}(${args.slice(3)},0,0))`,
-            set: () => `vars.set(${args[2]},)`
+            op: () => `vars.set("${opline[2]}",vmcb.o_${opline[1]}(${[...args.slice(2), 0, 0]}));`,
+            set: () => `vars.set("${opline[1]}",${a1});`,
+            end: () => `pc=0;`
         }
         emit(handlers[opc]())
         afterRunOp()
@@ -109,6 +116,10 @@ function compile<VMValue>(srccode: string) {
             p: (str: VMValue) => void
             pf: (str: VMValue) => void
             c_always: (a1: VMValue, a2: VMValue, a3: VMValue) => boolean
+            c_notEqual: (a1: VMValue, a2: VMValue, a3: VMValue) => boolean
+            c_equal: (a1: VMValue, a2: VMValue, a3: VMValue) => boolean
+            o_add: (a1: VMValue, a2: VMValue) => VMValue
+            o_equal: (a1: VMValue, a2: VMValue) => boolean
         },
         opcodesToRun: number
     ) => { pc: number; vars: Map<string, VMValue> }
@@ -116,37 +127,13 @@ function compile<VMValue>(srccode: string) {
 
 const rt = compile<number | string>(
     `
-    # compiled by qlx
-    set _main::_init::i 3          # input.qlx:1:1      | let i = 3
-    # falls through
+    set _main::_init::i 3          
 _main::_init.b_0:
-    print _main::_init::i          # input.qlx:3:5      |     print i
-    printflush message1            # input.qlx:4:5      |     printflush @message1
-    op add r3 1 _main::_init::i    # input.qlx:5:9      |     i = + 1 i
-    set _main::_init::i r3         # input.qlx:5:5      |     i = + 1 i
-    jump _main::_init.b_0`
+    print _main::_init::i          
+    print "\\n"                     
+    printflush message1            
+    op add r3 _main::_init::i 1    
+    set _main::_init::i r3         
+    jump _main::_init.b_0 always
+    `
 )
-let pc = 0
-const vars = new Map<string, number | string>()
-let printbuffer = ''
-vars.set('message1', 'message1')
-while (true) {
-    const res = rt(
-        pc,
-        vars,
-        {
-            p(str) {
-                printbuffer += `${str}`
-            },
-            pf(obj) {
-                for (const printbufferline of printbuffer.split('\n')) {
-                    console.log(`\x1b[0;30m${obj}\x1b[0m ${printbufferline}`)
-                }
-                printbuffer = ''
-            },
-            c_always: () => true
-        },
-        1
-    )
-    pc = res.pc
-}

@@ -1,3 +1,7 @@
-use foo
 
-foo::func/0
+let i = 69
+let a = + - i 2 1
+let b = + - i 2 2
+
+print + a b
+

@@ -33,6 +33,7 @@ export class MindustryProgram extends Program {
     binop(tgd: name, left: name, op: 'add' | 'lt' | 'eq', right: name): void {
         const binopLookup = {
             add: 'add',
+            sub: 'sub',
             lt: 'lessThan',
             eq: 'equal',
         } as const
@@ -106,6 +107,9 @@ export class MindustryProgram extends Program {
     }
     platformHookPrintString(p: string): void {
         this.emit(`    ${fmt.rawio}print ${ri}${JSON.stringify(p)}${nostyle}`)
+    }
+    platformHookPrintFlush(p: name): void {
+        this.emit(`    ${fmt.rawio}printflush${nostyle} ${this.lookup(p)}`)
     }
 
     generate(): string {
