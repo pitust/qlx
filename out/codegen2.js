@@ -34,7 +34,7 @@ function generateUnit(mod, fn, unit, writeCode) {
         if (typeof arg == 'number') return program.imm(arg)
         if (typeof arg == 'string') return program.stri(arg)
         if ('reg' in arg) return program.name2(`r${arg.reg}`)
-        if ('arg' in arg) return program.name2(`${mod}::${fn}::a${arg.arg}`)
+        if ('arg' in arg) return program.name2(`a${arg.arg}`)
         if ('glob' in arg) return program.name(`${mod}::_init::${arg.glob}`)
         console.log(`error: no ${Object.keys(arg)} support rn!`)
         process.exit(2)
@@ -97,20 +97,20 @@ function generateUnit(mod, fn, unit, writeCode) {
             } else if (op.op == _middlegen.Opcode.BindArgument) {
                 program.move(
                     program.name(`${mod}::${fn}::${op.args[0]}`),
-                    program.name2(`${mod}::${fn}.a${op.args[1]}.`)
+                    program.name2(`a${op.args[1]}`)
                 )
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     program.move(
-                        program.name2(`${mod}::${op.args[1]}-a${i}`),
+                        program.name2(`a${i}`),
                         immref(op.args[i + 2])
                     )
                 }
                 program.call(`${op.args[1]}`)
                 if (op.args[0]) {
-                    program.move(immref(op.args[0]), program.name2(`${mod}::${op.args[1]}-ret0`))
+                    program.move(immref(op.args[0]), program.name2(`ret0`))
                 }
-                functionCallReferenceSet.add(`${op.args[1]}`)
+                if (!`${op.args[1]}`.startsWith('__intrin::')) functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 program.move(immref(op.args[0]), program.name(`${mod}::_init::${op.args[1]}`))
             } else if (op.op == _middlegen.Opcode.LdLoc) {
@@ -121,6 +121,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                     Object.entries({
                         lessThan: 'lt',
                         add: 'add',
+                        sub: 'sub',
                     } )
                 )
                 if (!mappings.has(nam)) _common.ice.call(void 0, `todo: binop ${nam}`)
@@ -277,7 +278,7 @@ function generateUnit(mod, fn, unit, writeCode) {
     if (functionCallReferenceSet.size && _middlegen.options.noEnd) {
         buf.push(process.env.QLXCOLOR == 'on' ? `    \x1b[34mend\x1b[0m` : '    end')
     }
-    for (const u of functionCallReferenceSet) buf.push(...buffers.get(u))
+    for (const u of functionCallReferenceSet) if (!u.startsWith('__intrin::')) buf.push(...buffers.get(u))
     if (!_middlegen.options.cgOutput_suppress) {
         writeCode(buf.join('\n'))
     }

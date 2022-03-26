@@ -138,6 +138,9 @@ function expand(ctx, name) {
     if (ctx.names.has(name)) {
         return ctx.moduleName + '::' + name
     }
+    if (name.startsWith('__')) {
+        return '__intrin::' + name
+    }
     console.log('uhh, unsure about name', name)
 }
 function doGenerateExpr(node, ctx, isCallStatement = false) {
@@ -196,6 +199,9 @@ function doGenerateExpr(node, ctx, isCallStatement = false) {
     if (node.type == 'blox') {
         const vname = thestr(node.children[0])
         const reg = exports.getreg.call(void 0, )
+        if (vname.startsWith('"')) {
+            return JSON.parse(vname)
+        }
         pushOp({
             meta,
             pos: node.pos,

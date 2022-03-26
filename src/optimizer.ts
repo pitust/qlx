@@ -15,56 +15,20 @@ import {
 // reorder blocks to maximize fallthrough savings
 export function orderBlocks(blocks: Set<SSABlock>, b0: SSABlock): SSABlock[] {
     const order: SSABlock[] = []
-    if (options.reorderBlocks) {
-        const bset = new Set(blocks.keys())
-        order.push(b0)
-        bset.delete(b0)
-        for (const b of blocks) {
-            if (b.cond == JumpCond.Abort) b.targets = []
+    const bset = new Set(blocks.keys())
+    order.push(b0)
+    bset.delete(b0)
+    while (bset.size) {
+        const t = order[order.length - 1].targets.filter(e => bset.has(e))
+        if (t.length == 0) {
+            const b = <SSABlock>bset.keys().next().value
+            bset.delete(b)
+            order.push(b)
+            continue
         }
-        while (bset.size) {
-            const blockHeat = new Map<SSABlock, number>([...blocks.values()].map(e => [e, 0]))
-            for (const b of blocks) {
-                for (const t of b.targets) blockHeat.set(t, blockHeat.get(t) + 1)
-            }
-            const t = order[order.length - 1].targets.filter(e => bset.has(e))
-            if (t.length == 0) {
-                const be = <SSABlock>order.find(e => e.targets.filter(e => bset.has(e)).length)
-                if (!be) break
-                const t = be.targets.filter(e => bset.has(e))[0]
-                bset.delete(t)
-                order.push(t)
-                continue
-            }
-            if (t.length == 1) {
-                bset.delete(t[0])
-                order.push(t[0])
-                continue
-            }
-            if (blockHeat.get(t[0]) < blockHeat.get(t[1])) {
-                bset.delete(t[0])
-                order.push(t[0])
-            } else {
-                bset.delete(t[1])
-                order.push(t[1])
-            }
-        }
-    } else {
-        const bset = new Set(blocks.keys())
-        order.push(b0)
-        bset.delete(b0)
-        while (bset.size) {
-            const t = order[order.length - 1].targets.filter(e => bset.has(e))
-            if (t.length == 0) {
-                const b = <SSABlock>bset.keys().next().value
-                bset.delete(b)
-                order.push(b)
-                continue
-            }
-            for (const k of t) {
-                bset.delete(k)
-                order.push(k)
-            }
+        for (const k of t) {
+            bset.delete(k)
+            order.push(k)
         }
     }
     return order
@@ -578,6 +542,7 @@ function performInlining(
             // call block
             // Should we inline?
             const callop = blk.ops[0]
+            if (str(callop.args[1]).startsWith('__intrin::')) continue // never inline intrinsics
             if (getInliningDecision(str(callop.args[1]))) {
                 const blkz = deepClone(getFunctionBlocks(str(callop.args[1])))
                 const rootblock = blk
@@ -607,12 +572,13 @@ function performInlining(
                     for (const op of blk.ops) {
                         if (op.op == Opcode.Return || op.op == Opcode.ReturnVoid) {
                             if (op.op == Opcode.Return) {
-                                if (retvalue) opstream2.push({
-                                    pos: op.pos,
-                                    meta: op.meta,
-                                    op: Opcode.Move,
-                                    args: [retvalue, op.args[0]],
-                                })
+                                if (retvalue)
+                                    opstream2.push({
+                                        pos: op.pos,
+                                        meta: op.meta,
+                                        op: Opcode.Move,
+                                        args: [retvalue, op.args[0]],
+                                    })
                             }
                             blk.cond = JumpCond.Always
                             blk.condargs = []

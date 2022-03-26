@@ -233,25 +233,28 @@ function computeExpressionReferences(blkz: block[]): Map<expr, number> {
         for (const op of blk) {
             function scanRefs(e: expr) {
                 reft.set(e, 1 + (reft.get(e) ?? 0))
-                if (e.type == 'Number') return
-                if (e.type == 'String') return
-                if (e.type == 'Variable') return
-                if (
-                    e.type == 'LT' ||
-                    e.type == 'Add' ||
-                    e.type == 'Sub' ||
-                    e.type == 'Eq' ||
-                    e.type == 'NEq'
-                ) {
-                    scanRefs(e.left)
-                    scanRefs(e.right)
-                    return
+                if (reft.get(e) == 1) {
+                    if (e.type == 'Number') return
+                    if (e.type == 'String') return
+                    if (e.type == 'Variable') return
+                    if (
+                        e.type == 'LT' ||
+                        e.type == 'Add' ||
+                        e.type == 'Sub' ||
+                        e.type == 'Eq' ||
+                        e.type == 'NEq'
+                    ) {
+                        console.log(e.left, e.right, e.type)
+                        scanRefs(e.left)
+                        scanRefs(e.right)
+                        return
+                    }
+                    if (e.type == 'Negate') {
+                        scanRefs(e.value)
+                        return
+                    }
+                    if (e.type == 'CallSynchronisationBarrier') e.args.forEach(e => scanRefs(e))
                 }
-                if (e.type == 'Negate') {
-                    scanRefs(e.value)
-                    return
-                }
-                if (op.type == 'CallSynchronisationBarrier') op.args.forEach(e => scanRefs(e))
             }
             if (op.type == 'CallSynchronisationBarrier') op.args.forEach(e => scanRefs(e))
             if (op.type == 'Print') scanRefs(op.expr)
@@ -259,6 +262,7 @@ function computeExpressionReferences(blkz: block[]): Map<expr, number> {
             if (op.type == 'GlobalSynchronizationBarrier') scanRefs(op.expr)
             if (op.type == 'ReturnValueBarrier') scanRefs(op.value)
             if (op.type == 'Condbr') scanRefs(op.cond)
+            if (op.type == 'ControlFlowExit' || op.type == 'ControlFlowReturn') break
         }
     }
     return reft
@@ -396,106 +400,63 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
         ti => () =>
             program.name2(`t.${ti++}`)
     )(1)
-    let watermark = 0
-    const targetHints = new Map<expr, name>()
-    function buildExpressionTargetHints(expr: expr, namingHint: name | null) {
-        if (!namingHint) namingHint = tg()
-        if (allrc.get(expr) == 1) targetHints.set(expr, namingHint)
-        if (
-            expr.type == 'LT' ||
-            expr.type == 'Add' ||
-            expr.type == 'Sub' ||
-            expr.type == 'Eq' ||
-            expr.type == 'NEq'
-        ) {
-            buildExpressionTargetHints(expr.left, namingHint)
-            buildExpressionTargetHints(expr.right, null)
-        }
-        if (expr.type == 'Negate') {
-            buildExpressionTargetHints(expr.value, namingHint)
-        }
-    }
-    function buildRootTargetHints(op: op) {
-        if (op.type == 'GlobalSynchronizationBarrier') {
-            buildExpressionTargetHints(op.expr, program.name(`v.${op.glb}`))
-        }
-        if (op.type == 'CallSynchronisationBarrier') {
-            for (let i = 0; i < op.args.length; i++) {
-                buildExpressionTargetHints(op.args[i], program.name2(`a${i}`))
-            }
-        }
-        if (op.type == 'ReturnValueBarrier') {
-            buildExpressionTargetHints(op.value, program.name2(`ret0`))
-        }
-    }
-    for (const blk of bmap.values()) for (const op of blk) buildRootTargetHints(op)
+    let watermark = -1
 
-    function computeLive() {
-        let madeProgress = false
-        do {
-            madeProgress = false
-            for (const [e] of allrc) {
-                if (completed.has(e)) continue
-                if (e.type == 'Number') {
-                    completed.set(e, program.imm(e.value))
-                    madeProgress = true
-                    continue
-                }
-                if (e.type == 'String') {
-                    completed.set(e, program.stri(e.value))
-                    madeProgress = true
-                    continue
-                }
-                if (e.type == 'Variable') {
-                    if (e.blockid != watermark) continue
-                    completed.set(e, program.name(`v.${e.value}`))
-                    madeProgress = true
-                    continue
-                }
-                if (e.type == 'Negate') {
-                    if (!completed.has(e.value)) continue
-                    const name = targetHints.get(e) ?? tg()
-                    program.binop(name, program.imm(0), 'eq', completed.get(e.value))
-                    completed.set(e, name)
-                    madeProgress = true
-                    continue
-                }
-                if (e.type == 'LT' || e.type == 'Add' || e.type == 'Sub') {
-                    if (!completed.has(e.left)) continue
-                    if (!completed.has(e.right)) continue
-                    const name = targetHints.get(e) ?? tg()
-                    const names = {
-                        LT: 'lt',
-                        Add: 'add',
-                        Sub: 'sub'
-                    } as const
-                    program.binop(
-                        name,
-                        completed.get(e.left),
-                        names[e.type],
-                        completed.get(e.right)
-                    )
-                    completed.set(e, name)
-                    madeProgress = true
-                    continue
-                }
-                // Barriers are completed after execution completes
-                if (e.type == 'CallSynchronisationBarrier') {
-                    continue
-                }
-                _fatal('todo type ' + e.type)
-            }
-        } while (madeProgress)
+    function possiblyHint(e: expr, nam: name) {
+        if (allrc.get(e) == 1 && !completed.has(e)) attemptCompletion(e, nam, true)
     }
-
-    computeLive()
-
-    watermark = -1
+    function attemptCompletion(e: expr, nameHint: name = tg(), hinted: boolean = false) {
+        if (completed.has(e)) return false
+        if (e.type == 'Number') {
+            completed.set(e, program.imm(e.value))
+            return true
+        }
+        if (e.type == 'String') {
+            completed.set(e, program.stri(e.value))
+            return true
+        }
+        if (e.type == 'Variable') {
+            completed.set(e, program.name(`v.${e.value}`))
+            return true
+        }
+        if (e.type == 'Negate') {
+            const name = nameHint
+            possiblyHint(e.value, nameHint)
+            attemptCompletion(e.value)
+            if (!completed.has(e.value)) return false
+            program.binop(name, program.imm(0), 'eq', completed.get(e.value))
+            completed.set(e, name)
+            return true
+        }
+        if (e.type == 'LT' || e.type == 'Add' || e.type == 'Sub') {
+            let name = nameHint
+            possiblyHint(e.left, nameHint)
+            attemptCompletion(e.left)
+            attemptCompletion(e.right)
+            if (!completed.has(e.left)) return false
+            if (!completed.has(e.right)) return false
+            console.log(allrc.get(e.left))
+            if (allrc.get(e.left) == 1) name = completed.get(e.left)
+            const names = {
+                LT: 'lt',
+                Add: 'add',
+                Sub: 'sub',
+            } as const
+            program.binop(name, completed.get(e.left), names[e.type], completed.get(e.right))
+            completed.set(e, name)
+            return true
+        }
+        // Barriers are completed after execution completes
+        if (e.type == 'CallSynchronisationBarrier') {
+            return false
+        }
+        _fatal('todo type ' + e.type)
+    }
     for (const blk of bmap.values()) {
         watermark++
         if (conditionalBranchTargetSet.has(watermark)) program.label(`b.${watermark}`)
-        computeLive()
         function getex(e: expr): name {
+            attemptCompletion(e)
             // note to future self and/or future maintainers:
             //    if you are here because you were adding opcodes, please remember to add it to the recursive
             //    scanner, or liveness will never compute correctly!
@@ -527,13 +488,15 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
                 program.move(program.name2(`ret0`), getex(op.value))
             } else if (op.type == 'CallSynchronisationBarrier') {
                 for (let i = 0; i < op.args.length; i++) {
+                    if (allrc.get(op.args[i]) == 1 && !completed.has(op.args[i])) {
+                        possiblyHint(op.args[i], program.name2(`a${i}`))
+                    }
                     program.move(program.name2(`a${i}`), getex(op.args[i]))
                 }
-                program.call(`fn.${op.target}`)
+                program.call(`${op.target}`)
                 const return_value = tg()
                 program.move(return_value, program.name2(`ret0`))
                 completed.set(op, return_value)
-                computeLive()
             } else {
                 // _fatal(`bad op ${op.type}`)
             }

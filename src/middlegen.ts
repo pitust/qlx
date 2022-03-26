@@ -138,6 +138,9 @@ function expand(ctx: SSAGenCtx, name: string) {
     if (ctx.names.has(name)) {
         return ctx.moduleName + '::' + name
     }
+    if (name.startsWith('__')) {
+        return '__intrin::' + name
+    }
     console.log('uhh, unsure about name', name)
 }
 function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = false): OpArg {
@@ -196,6 +199,9 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
     if (node.type == 'blox') {
         const vname = thestr(node.children[0])
         const reg = getreg()
+        if (vname.startsWith('"')) {
+            return JSON.parse(vname)
+        }
         pushOp({
             meta,
             pos: node.pos,

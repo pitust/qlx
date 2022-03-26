@@ -1,3 +1,4 @@
+import { allocateColors } from './colors'
 import { ice } from './common'
 import {
     rk_reg,
@@ -15,12 +16,16 @@ import {
 
 export { rk_reg, insn, move, ref } from './isel'
 export const add = Symbol.for('add') as insn
+export const sub = Symbol.for('sub') as insn
 export const freeze = Symbol.for('freeze') as insn
 export const syscall = Symbol.for('syscall') as insn
+export const syscall2 = Symbol.for('syscall2') as insn
 export const br = Symbol.for('br') as insn
 export const condbr = Symbol.for('condbr') as insn
 export const endbr = Symbol.for('endbr') as insn
+export const poke8 = Symbol.for('poke8') as insn
 
+const rk_dataref = Symbol.for('dataref') as refkind
 const rk_stack = Symbol.for('stack') as refkind
 const rk_label = Symbol.for('label') as refkind
 const rk_imm = Symbol.for('imm') as refkind
@@ -32,23 +37,35 @@ export const label: (idx: number) => ref = idx => ({ kind: rk_label, id: idx, ty
 export const stack: (slot: number) => ref = slot => ({ kind: rk_stack, id: slot, type: 'real' })
 export const imm: (imm: number) => ref = imm => ({ kind: rk_imm, id: imm, type: 'real' })
 export const reg: (regi: number) => ref = regi => ({ kind: rk_reg, id: regi, type: 'real' })
-export const phyreg: (regi: number) => ref = regi => ({ kind: rk_phyreg, id: regi, type: 'real' })
+export const __phyreg: (regi: number) => ref = regi => ({ kind: rk_phyreg, id: regi, type: 'real' })
 export const vreg: (regi: number) => ref = regi => ({ kind: rk_reg, id: regi, type: 'aetheral' })
+export const dataref: (index: number) => ref = index => ({
+    kind: rk_dataref,
+    id: index,
+    type: 'real',
+})
 
 const operations: opdef[] = [
+    ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_dataref)]],
     ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_imm)]],
     ['mov^ {1}, {2}', move, [o(rk_stack), i(rk_reg)]],
     ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_stack)]],
     ['mov^ {1}, {2}', move, [o(rk_reg), i(rk_reg)]],
+    ['mov^ \x004byte\x00r [{1}], \x005lo8_{2}', poke8, [i(rk_reg), i(rk_reg)]],
     ['add^ {1}, {2}', add, [io(rk_reg), i(rk_imm)]],
     ['add^ {1}, {2}', add, [io(rk_reg), i(rk_reg)]],
     ['add^ {1}, {2}', add, [io(rk_stack), i(rk_imm)]],
     ['add^ {1}, {2}', add, [io(rk_stack), i(rk_reg)]],
+    ['sub^ {1}, {2}', sub, [io(rk_reg), i(rk_imm)]],
+    ['sub^ {1}, {2}', sub, [io(rk_reg), i(rk_reg)]],
+    ['sub^ {1}, {2}', sub, [io(rk_stack), i(rk_imm)]],
+    ['sub^ {1}, {2}', sub, [io(rk_stack), i(rk_reg)]],
     ['; freeze {2} as {1}', freeze, [o(rk_reg), i(rk_phyreg)]],
     ['syscall^', syscall, [o(rk_reg), i(rk_reg), i(rk_reg)]],
+    ['syscall^ ', syscall2, [o(rk_reg), i(rk_reg), i(rk_reg), i(rk_reg), i(rk_reg)]],
 
     ['test^ {2}, {2}', move, [o(rk_flags), i(rk_reg)]],
-    ['l_{1}:', endbr, [i(rk_label)]],
+    ['{1}:', endbr, [i(rk_label)]],
     ['jmp^ {1}', br, [i(rk_label)]],
     ['jnz^ {1}', condbr, [i(rk_label), i(rk_flags)]],
 ]
@@ -56,7 +73,7 @@ const operations: opdef[] = [
 const name2type = new Map<string, insn>()
 for (const opd of operations) name2type.set(opd[0], opd[1])
 
-const rcount = 6 // 6 regs on x86
+const rcount = 14 // 14 regs on x86
 
 // general algorithm:
 // we isel everything, then we mostly-k-color extra regs needed, the spillages are put on the stack
@@ -78,7 +95,6 @@ function colorAll(
     const precolor = new Map<number, number>() // map[reg id] => reg, precolored registers for abi and shit
     const earlycolor = new Set<number>() // set[reg id], color those guys first
     const altmatch_id = new Map<number, number>()
-
     const stores = new Map<number, number[]>()
     const loads = new Map<number, number[]>()
     const frozen = new Set<number>()
@@ -95,23 +111,6 @@ function colorAll(
                 }
                 v.id = altmatch_id.get(v.id)
                 earlycolor.add(v.id)
-            }
-            for (const v of mm[1].filter(e => e.kind == rk_reg)) {
-                let is_st = false,
-                    is_ld = false
-                if (name2type.get(mm[0]) == add) {
-                    if (mm[1][0] == v) is_st = true
-                    is_ld = true
-                } else {
-                    is_st = mm[1][0] == v
-                    is_ld = mm[1][0] != v
-                }
-                if (!stores.has(v.id)) {
-                    stores.set(v.id, [])
-                    loads.set(v.id, [])
-                }
-                if (is_st) stores.get(v.id).push(rootm.length)
-                if (is_ld) loads.get(v.id).push(rootm.length)
             }
             if (name2type.get(mm[0]) == freeze) {
                 if (mm[1][0].kind != rk_reg) ice('cannot freeze non-reg!')
@@ -135,18 +134,38 @@ function colorAll(
         }
     }
     for (const m of matchto) tryAltMatch(resolveMatch(operations, ...m, 'deep')[1])
-
-    const usage: number[][] = rootm.map(() => [])
-    for (const [id] of loads) {
-        for (let idx of loads.get(id)) {
-            while (idx > 0 && !stores.get(id).includes(idx) && !usage[idx].includes(id)) {
-                usage[idx].push(id)
-                idx--
+    for (let i = 0; i < rootm.length; i++) {
+        const mm = rootm[i]
+        if (name2type.get(mm[0]) == freeze) continue
+        for (const v of mm[1].filter(e => e.kind == rk_reg)) {
+            let is_st = false,
+                is_ld = false
+            if (name2type.get(mm[0]) == add) {
+                if (mm[1][0] == v) is_st = true
+                is_ld = true
+            } else {
+                is_st = mm[1][0] == v
+                is_ld = mm[1][0] != v
             }
+            if (!stores.has(v.id)) {
+                stores.set(v.id, [])
+                loads.set(v.id, [])
+            }
+            if (v.id == 30)
+                console.log(
+                    `at ${i} op ${name2type.get(mm[0]).description} ${mm[1].map(
+                        e => e.id
+                    )} was used`
+                )
+            if (is_st) stores.get(v.id).push(i)
+            if (is_ld) loads.get(v.id).push(i)
         }
-        for (let idx of stores.get(id)) {
-            if (!usage[idx].includes(id)) usage[idx].push(id)
-        }
+    }
+    const usage: number[][] = rootm.map(() => [])
+    for (const [id, fml] of stores) {
+        const start = fml[0]
+        const end = loads.get(id).slice(-1)[0]
+        for (let i = start; i <= end; i++) usage[i].push(id)
     }
     const graph = new Map<number, Set<number>>()
     const deleted = new Set<number>()
@@ -168,13 +187,16 @@ function colorAll(
                 }
         }
     }
-
+    printMatches(rootm.map(e => [name2type.get(e[0]).description, e[1]]))
     let spillpoint = 1
     const colors = new Map<number, number>()
     const spill = new Map<number, number>()
     function color(n: number) {
         if (!graph.has(n)) ice(`graph does not have node ${n}, cannot color`)
-        if (colors.has(n)) ice(`${n} has color, can't recolor lul`)
+        if (colors.has(n)) {
+            console.trace()
+            ice(`${n} has color, can't recolor lul`)
+        }
         let r = 0
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
         while (re.includes(r)) r++
@@ -185,13 +207,17 @@ function colorAll(
         if (!graph.has(n)) ice(`graph does not have node ${n}, cannot color`)
         let r = to
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
-        if (re.includes(r)) ice('cannot color graph, frozen register conflict!')
+        if (re.includes(r))
+            ice(
+                `graph precoloring failed: frozen register conflict: ${n} needs to become ${to}, but it is used`
+            )
         colors.set(n, r)
     }
+    console.log(graph)
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)
     }
-    for (const f of frozen) color(f) // we can't spill regs used for spilling! (but they hopefully live for a short time)
+    for (const f of frozen) if (!precolor.has(f)) color(f) // we can't spill regs used for spilling! (but they hopefully live for a short time)
     function kcolor() {
         if (graph.size == deleted.size) return
         for (const [n, e] of nodes()) {
@@ -229,14 +255,48 @@ function colorAll(
             }
         }
     }
+
     if (done) return { done: true, res: rootm }
     return { done: false, res: rootm.map(e => [name2type.get(e[0]), e[1]]) }
 }
 
-export function completeGraphColor(target: [insn, ref[]][]) {
-    const regs = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi']
+const regnames = [
+    'rax',
+    'rbx',
+    'rcx',
+    'rdx',
+    'rsi',
+    'rdi',
+    'r8',
+    'r9',
+    'r10',
+    'r11',
+    'r12',
+    'r13',
+    'r14',
+    'r15',
+]
+export function phyreg(name: string) {
+    return __phyreg(regnames.indexOf(name))
+}
+export function completeGraphColor(target: [insn, ref[]][], strings: string[]) {
     function expandAssembly(aa: [string, ref[]][]) {
-        const out: string[] = []
+        const out: string[] = [
+            `%define lo8_rax al`,
+            `%define lo8_rbx bl`,
+            `%define lo8_rcx cl`,
+            `%define lo8_rdx dl`,
+            `%define lo8_rsi sil`,
+            `%define lo8_rdi dil`,
+            `%define lo8_r8 r8l`,
+            `%define lo8_r9 r9l`,
+            `%define lo8_r10 r10l`,
+            `%define lo8_r11 r11l`,
+            `%define lo8_r12 r12l`,
+            `%define lo8_r13 r13l`,
+            `%define lo8_r14 r14l`,
+            `%define lo8_r15 r15l`,
+        ].map(e=>`\x004${e}\x00r`)
         for (const a of aa) {
             let aq = a[0]
             for (let i = 0; i < a[1].length; i++) {
@@ -245,10 +305,11 @@ export function completeGraphColor(target: [insn, ref[]][]) {
                 let tval = `<${tkind.description}:${tid}>`
 
                 if (tkind == rk_stack) tval = `[\x005rsp\x00r+\x005${tid * 8}\x00r]\x00r`
-                if (tkind == rk_reg) tval = `\x005${regs[tid]}\x00r`
-                if (tkind == rk_phyreg) tval = `\x005${regs[tid]}\x00r\x000`
+                if (tkind == rk_reg) tval = `\x005${regnames[tid]}\x00r`
+                if (tkind == rk_phyreg) tval = `\x005${regnames[tid]}\x00r\x000`
                 if (tkind == rk_imm) tval = `\x005${tid}\x00r`
-                if (tkind == rk_label) tval = `${tid}`
+                if (tkind == rk_label) tval = `\x003l_${tid}\x00r`
+                if (tkind == rk_dataref) tval = `\x004_gs${tid}\x00r`
 
                 aq = aq.replaceAll(`{${i + 1}}`, tval)
             }
@@ -263,6 +324,14 @@ export function completeGraphColor(target: [insn, ref[]][]) {
                 aq = `\x00+\x002${pre}\x00r\x000${frag.map(e => ';' + e).join('')}`
             }
             out.push(aq)
+        }
+        out.push(`\x003section .data\x00r`)
+        for (let i = 0; i < strings.length; i++) {
+            out.push(
+                `\x004_gs${i}\x00r: \x003db\x00r \x005${JSON.stringify(
+                    strings[i]
+                )}\x00r,\x005 0\x00r`
+            )
         }
         return out
     }

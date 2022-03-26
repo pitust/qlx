@@ -1,7 +1,6 @@
 
-let i = 69
-let a = + - i 2 1
-let b = + - i 2 2
+let s = "foo: 0\n"
+__poke8_vsi/2 __stroff_ssi/2 s 5 + 48 9
+__syscall3_viiii/4 1 1 __ichg_is/1 s 7
 
-print + a b
 

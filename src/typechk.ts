@@ -323,6 +323,19 @@ function continueBlockCheck(
                 const output = <{ reg: number }>op.args[0]
                 const tgd = <string>op.args[1]
                 const callargs = op.args.slice(2)
+                if (tgd.startsWith('__intrin::') && !gFn.has(tgd)) {
+                    // intrinsics are magical: they are autoderived on first use
+                    const typespec = [...tgd.split('_').slice(-1)[0]]
+                    const ts = typespec.map(e => ({
+                        v: PrimitiveType.Void,
+                        i: PrimitiveType.Float,
+                        s: PrimitiveType.String
+                    })[e])
+                    gFn.set(tgd, {
+                        ret: ts[0],
+                        args: ts.slice(1)
+                    })
+                }
                 if (!gFn.has(tgd)) {
                     console.log(`error: ${op.pos}: cannot find function ${tgd}/${callargs.length}`)
                     checked = false
@@ -341,6 +354,7 @@ function continueBlockCheck(
                         console.log(
                             `error: ${op.pos}: function ${tgd}/${callargs.length} cannot be called because parameters are incorrect.`
                         )
+                        reportTypeDiff(fndata.args[i], immtype(callargs[i], ltypes), `here: %a vs %b`)
                         checked = false
                         return
                     }

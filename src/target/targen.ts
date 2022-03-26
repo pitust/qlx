@@ -1,7 +1,7 @@
 export type name = symbol & { tag: 'name' }
 export abstract class Program {
     abstract move(tgd: name, value: name): void
-    abstract binop(tgd: name, left: name, op: 'add' | 'lt' | 'eq' | 'sub', right: name): void
+    abstract binop(tgd: name, left: name, op: 'sub' | 'add' | 'lt' | 'eq' | 'sub', right: name): void
     abstract unop(tgd: name, op: 'invert', arg: name): void
     abstract imm(n: number): name
     abstract stri(n: string): name

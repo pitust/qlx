@@ -28,7 +28,8 @@ export class MindustryProgram extends Program {
     }
 
     move(tgd: name, value: name): void {
-        this.emit(`    ${fmt.assign}set${nostyle} ${this.lookup(tgd)} ${this.lookup(value)}`)
+        if (this.lookup(tgd) != this.lookup(value))
+            this.emit(`    ${fmt.assign}set${nostyle} ${this.lookup(tgd)} ${this.lookup(value)}`)
     }
     binop(tgd: name, left: name, op: 'add' | 'lt' | 'eq', right: name): void {
         const binopLookup = {
@@ -72,7 +73,9 @@ export class MindustryProgram extends Program {
         return sym
     }
     call(name: string): void {
-        this.emit(`    ${fmt.cflow}op ${selector}add ${ri}lr.${name} ${selector}@counter ${ri}2${nostyle}`)
+        this.emit(
+            `    ${fmt.cflow}op ${selector}add ${ri}lr.${name} ${selector}@counter ${ri}2${nostyle}`
+        )
         this.emit(`    ${fmt.cflow}jump ${label}${name} ${selector}always${nostyle}`)
     }
     retv(name: string): void {

@@ -28,11 +28,13 @@ var _targen = require('../targen');
     }
 
     move(tgd, value) {
-        this.emit(`    ${_highlight.fmt.assign}set${_highlight.nostyle} ${this.lookup(tgd)} ${this.lookup(value)}`)
+        if (this.lookup(tgd) != this.lookup(value))
+            this.emit(`    ${_highlight.fmt.assign}set${_highlight.nostyle} ${this.lookup(tgd)} ${this.lookup(value)}`)
     }
     binop(tgd, left, op, right) {
         const binopLookup = {
             add: 'add',
+            sub: 'sub',
             lt: 'lessThan',
             eq: 'equal',
         } 
@@ -71,7 +73,9 @@ var _targen = require('../targen');
         return sym
     }
     call(name) {
-        this.emit(`    ${_highlight.fmt.cflow}op ${_highlight.selector}add ${_highlight.ri}lr.${name} ${_highlight.selector}@counter ${_highlight.ri}2${_highlight.nostyle}`)
+        this.emit(
+            `    ${_highlight.fmt.cflow}op ${_highlight.selector}add ${_highlight.ri}lr.${name} ${_highlight.selector}@counter ${_highlight.ri}2${_highlight.nostyle}`
+        )
         this.emit(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${name} ${_highlight.selector}always${_highlight.nostyle}`)
     }
     retv(name) {
