@@ -7,7 +7,6 @@ import {
     io,
     move,
     resolveMatch,
-    printMatches,
     insn,
     ref,
     opdef,
@@ -151,12 +150,6 @@ function colorAll(
                 stores.set(v.id, [])
                 loads.set(v.id, [])
             }
-            if (v.id == 30)
-                console.log(
-                    `at ${i} op ${name2type.get(mm[0]).description} ${mm[1].map(
-                        e => e.id
-                    )} was used`
-                )
             if (is_st) stores.get(v.id).push(i)
             if (is_ld) loads.get(v.id).push(i)
         }
@@ -187,7 +180,6 @@ function colorAll(
                 }
         }
     }
-    printMatches(rootm.map(e => [name2type.get(e[0]).description, e[1]]))
     let spillpoint = 1
     const colors = new Map<number, number>()
     const spill = new Map<number, number>()
@@ -213,7 +205,6 @@ function colorAll(
             )
         colors.set(n, r)
     }
-    console.log(graph)
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)
     }

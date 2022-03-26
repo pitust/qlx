@@ -11,7 +11,6 @@ var _common = require('./common');
 
 
 
-
 var _isel = require('./isel'); _createNamedExportFrom(_isel, 'rk_reg', 'rk_reg'); _createNamedExportFrom(_isel, 'insn', 'insn'); _createNamedExportFrom(_isel, 'move', 'move'); _createNamedExportFrom(_isel, 'ref', 'ref');
 
 
@@ -151,12 +150,6 @@ function colorAll(
                 stores.set(v.id, [])
                 loads.set(v.id, [])
             }
-            if (v.id == 30)
-                console.log(
-                    `at ${i} op ${name2type.get(mm[0]).description} ${mm[1].map(
-                        e => e.id
-                    )} was used`
-                )
             if (is_st) stores.get(v.id).push(i)
             if (is_ld) loads.get(v.id).push(i)
         }
@@ -187,7 +180,6 @@ function colorAll(
                 }
         }
     }
-    _isel.printMatches.call(void 0, rootm.map(e => [name2type.get(e[0]).description, e[1]]))
     let spillpoint = 1
     const colors = new Map()
     const spill = new Map()
@@ -213,7 +205,6 @@ function colorAll(
             )
         colors.set(n, r)
     }
-    console.log(graph)
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)
     }
