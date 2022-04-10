@@ -72,11 +72,15 @@ export class MindustryProgram extends Program {
         this.nameLookup.set(sym, `${glob}t${n}${nostyle}`)
         return sym
     }
-    call(name: string): void {
+    call(_ret0hint: name, name: string, args: name[]): name {
+        for (let i = 0; i < args.length; i++) {
+            this.move(this.name2(`a${i}`), args[i])
+        }
         this.emit(
             `    ${fmt.cflow}op ${selector}add ${ri}lr.${name} ${selector}@counter ${ri}2${nostyle}`
         )
         this.emit(`    ${fmt.cflow}jump ${label}${name} ${selector}always${nostyle}`)
+        return this.name2('ret0')
     }
     retv(name: string): void {
         this.emit(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${name}${nostyle}`)

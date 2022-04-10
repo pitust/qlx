@@ -1,17 +1,6 @@
 import { allocateColors } from './colors'
 import { ice } from './common'
-import {
-    rk_reg,
-    i,
-    o,
-    io,
-    move,
-    resolveMatch,
-    insn,
-    ref,
-    opdef,
-    refkind,
-} from './isel'
+import { rk_reg, i, o, io, move, resolveMatch, insn, ref, opdef, refkind, printMatches } from './isel'
 
 export { rk_reg, insn, move, ref } from './isel'
 export const add = Symbol.for('add') as insn
@@ -24,12 +13,12 @@ export const condbr = Symbol.for('condbr') as insn
 export const endbr = Symbol.for('endbr') as insn
 export const poke8 = Symbol.for('poke8') as insn
 
-const rk_dataref = Symbol.for('dataref') as refkind
-const rk_stack = Symbol.for('stack') as refkind
-const rk_label = Symbol.for('label') as refkind
-const rk_imm = Symbol.for('imm') as refkind
-const rk_phyreg = Symbol.for('phyreg') as refkind
-const rk_flags = Symbol.for('flags') as refkind
+export const rk_dataref = Symbol.for('dataref') as refkind
+export const rk_stack = Symbol.for('stack') as refkind
+export const rk_label = Symbol.for('label') as refkind
+export const rk_imm = Symbol.for('imm') as refkind
+export const rk_phyreg = Symbol.for('phyreg') as refkind
+export const rk_flags = Symbol.for('flags') as refkind
 
 export const flags: () => ref = () => ({ kind: rk_flags, id: 0, type: 'real' })
 export const label: (idx: number) => ref = idx => ({ kind: rk_label, id: idx, type: 'real' })
@@ -97,6 +86,7 @@ function colorAll(
     const stores = new Map<number, number[]>()
     const loads = new Map<number, number[]>()
     const frozen = new Set<number>()
+    const hints = new Map<number, number>()
     let done = true
     let rootm: [string, ref[]][] = []
     function tryAltMatch(m: [string, ref[]][]) {
@@ -139,19 +129,21 @@ function colorAll(
         for (const v of mm[1].filter(e => e.kind == rk_reg)) {
             let is_st = false,
                 is_ld = false
-            if (name2type.get(mm[0]) == add) {
-                if (mm[1][0] == v) is_st = true
-                is_ld = true
-            } else {
-                is_st = mm[1][0] == v
-                is_ld = mm[1][0] != v
-            }
+            
+            const argi = mm[1].indexOf(v)
+            const mode = operations.find(e => e[0] == mm[0])[2][argi].mode
+            if (mode == 'i' || mode == 'io') is_ld = true
+            if (mode == 'o' || mode == 'io') is_st = true
             if (!stores.has(v.id)) {
                 stores.set(v.id, [])
                 loads.set(v.id, [])
             }
             if (is_st) stores.get(v.id).push(i)
             if (is_ld) loads.get(v.id).push(i)
+        }
+        if (name2type.get(mm[0]) == move && mm[1][0].kind == rk_reg && mm[1][1].kind == rk_reg) {
+            hints.set(mm[1][0].id, mm[1][1].id)
+            hints.set(mm[1][1].id, mm[1][0].id)
         }
     }
     const usage: number[][] = rootm.map(() => [])
@@ -189,21 +181,29 @@ function colorAll(
             console.trace()
             ice(`${n} has color, can't recolor lul`)
         }
-        let r = 0
+        let r = 1
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
+        if (colors.has(hints.get(n))) if (!re.includes(colors.get(hints.get(n)))) r = colors.get(hints.get(n))
         while (re.includes(r)) r++
+        if (r == rcount && !re.includes(0)) r = 0
         if (r < rcount) colors.set(n, r)
         else spill.set(n, spillpoint++)
     }
     function doFreeze(n: number, to: number) {
-        if (!graph.has(n)) ice(`graph does not have node ${n}, cannot color`)
+        if (!graph.has(n)) {
+            // if they are not in the graph, then they have no siblings.
+            // if they have no siblings, they cannot possibly conflict with, like, anything
+            // if they can't conflict with anything, you can just give them what they want
+            colors.set(n, to)
+            return
+        }
         let r = to
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
         if (re.includes(r))
             ice(
                 `graph precoloring failed: frozen register conflict: ${n} needs to become ${to}, but it is used`
             )
-        colors.set(n, r)
+            colors.set(n, r)
     }
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)
@@ -272,6 +272,7 @@ export function phyreg(name: string) {
 }
 export function completeGraphColor(target: [insn, ref[]][], strings: string[]) {
     function expandAssembly(aa: [string, ref[]][]) {
+        let price = 0
         const out: string[] = [
             `%define lo8_rax al`,
             `%define lo8_rbx bl`,
@@ -287,9 +288,17 @@ export function completeGraphColor(target: [insn, ref[]][], strings: string[]) {
             `%define lo8_r13 r13l`,
             `%define lo8_r14 r14l`,
             `%define lo8_r15 r15l`,
-        ].map(e=>`\x004${e}\x00r`)
+        ].map(e => `\x004${e}\x00r`)
         for (const a of aa) {
             let aq = a[0]
+            if (
+                name2type.get(a[0]) == move &&
+                a[1][0].kind == rk_reg &&
+                a[1][1].kind == rk_reg &&
+                a[1][0].id == a[1][1].id
+            ) {
+                continue
+            }
             for (let i = 0; i < a[1].length; i++) {
                 let tid: number = a[1][i].id
                 let tkind: refkind = a[1][i].kind
@@ -314,6 +323,9 @@ export function completeGraphColor(target: [insn, ref[]][], strings: string[]) {
                 const [pre, ...frag] = aq.split(';')
                 aq = `\x00+\x002${pre}\x00r\x000${frag.map(e => ';' + e).join('')}`
             }
+            if (aq.includes('    ') && name2type.get(a[0]) != freeze) {
+                price++
+            }
             out.push(aq)
         }
         out.push(`\x003section .data\x00r`)
@@ -324,6 +336,7 @@ export function completeGraphColor(target: [insn, ref[]][], strings: string[]) {
                 )}\x00r,\x005 0\x00r`
             )
         }
+        if (process.env.PRINT_PRICE == 'yes') console.log(`price=${price}`)
         return out
     }
     let current = target

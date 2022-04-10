@@ -27,5 +27,5 @@ export abstract class Program {
     abstract retv(name: string): void
 
     // functions
-    abstract call(name: string): void
+    abstract call(ret0hint: name | null, name: string, args: name[]): name
 }

@@ -1,16 +1,5 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _createNamedExportFrom(obj, localName, importedName) { Object.defineProperty(exports, localName, {enumerable: true, get: () => obj[importedName]}); }
 var _common = require('./common');
-
-
-
-
-
-
-
-
-
-
-
 var _isel = require('./isel'); _createNamedExportFrom(_isel, 'rk_reg', 'rk_reg'); _createNamedExportFrom(_isel, 'insn', 'insn'); _createNamedExportFrom(_isel, 'move', 'move'); _createNamedExportFrom(_isel, 'ref', 'ref');
 
 
@@ -24,49 +13,49 @@ var _isel = require('./isel'); _createNamedExportFrom(_isel, 'rk_reg', 'rk_reg')
  const endbr = Symbol.for('endbr') ; exports.endbr = endbr
  const poke8 = Symbol.for('poke8') ; exports.poke8 = poke8
 
-const rk_dataref = Symbol.for('dataref') 
-const rk_stack = Symbol.for('stack') 
-const rk_label = Symbol.for('label') 
-const rk_imm = Symbol.for('imm') 
-const rk_phyreg = Symbol.for('phyreg') 
-const rk_flags = Symbol.for('flags') 
+ const rk_dataref = Symbol.for('dataref') ; exports.rk_dataref = rk_dataref
+ const rk_stack = Symbol.for('stack') ; exports.rk_stack = rk_stack
+ const rk_label = Symbol.for('label') ; exports.rk_label = rk_label
+ const rk_imm = Symbol.for('imm') ; exports.rk_imm = rk_imm
+ const rk_phyreg = Symbol.for('phyreg') ; exports.rk_phyreg = rk_phyreg
+ const rk_flags = Symbol.for('flags') ; exports.rk_flags = rk_flags
 
- const flags = () => ({ kind: rk_flags, id: 0, type: 'real' }); exports.flags = flags
- const label = idx => ({ kind: rk_label, id: idx, type: 'real' }); exports.label = label
- const stack = slot => ({ kind: rk_stack, id: slot, type: 'real' }); exports.stack = stack
- const imm = imm => ({ kind: rk_imm, id: imm, type: 'real' }); exports.imm = imm
+ const flags = () => ({ kind: exports.rk_flags, id: 0, type: 'real' }); exports.flags = flags
+ const label = idx => ({ kind: exports.rk_label, id: idx, type: 'real' }); exports.label = label
+ const stack = slot => ({ kind: exports.rk_stack, id: slot, type: 'real' }); exports.stack = stack
+ const imm = imm => ({ kind: exports.rk_imm, id: imm, type: 'real' }); exports.imm = imm
  const reg = regi => ({ kind: _isel.rk_reg, id: regi, type: 'real' }); exports.reg = reg
- const __phyreg = regi => ({ kind: rk_phyreg, id: regi, type: 'real' }); exports.__phyreg = __phyreg
+ const __phyreg = regi => ({ kind: exports.rk_phyreg, id: regi, type: 'real' }); exports.__phyreg = __phyreg
  const vreg = regi => ({ kind: _isel.rk_reg, id: regi, type: 'aetheral' }); exports.vreg = vreg
  const dataref = index => ({
-    kind: rk_dataref,
+    kind: exports.rk_dataref,
     id: index,
     type: 'real',
 }); exports.dataref = dataref
 
 const operations = [
-    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_dataref)]],
-    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_imm)]],
-    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_stack)]],
+    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_dataref)]],
+    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_imm)]],
+    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, exports.rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
+    ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_stack)]],
     ['mov^ {1}, {2}', _isel.move, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
     ['mov^ \x004byte\x00r [{1}], \x005lo8_{2}', exports.poke8, [_isel.i.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_imm)]],
+    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_imm)]],
     ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, rk_stack), _isel.i.call(void 0, rk_imm)]],
-    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_imm)]],
+    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, exports.rk_stack), _isel.i.call(void 0, exports.rk_imm)]],
+    ['add^ {1}, {2}', exports.add, [_isel.io.call(void 0, exports.rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
+    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_imm)]],
     ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, rk_stack), _isel.i.call(void 0, rk_imm)]],
-    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['; freeze {2} as {1}', exports.freeze, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, rk_phyreg)]],
+    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, exports.rk_stack), _isel.i.call(void 0, exports.rk_imm)]],
+    ['sub^ {1}, {2}', exports.sub, [_isel.io.call(void 0, exports.rk_stack), _isel.i.call(void 0, _isel.rk_reg)]],
+    ['; freeze {2} as {1}', exports.freeze, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, exports.rk_phyreg)]],
     ['syscall^', exports.syscall, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
     ['syscall^ ', exports.syscall2, [_isel.o.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg), _isel.i.call(void 0, _isel.rk_reg)]],
 
-    ['test^ {2}, {2}', _isel.move, [_isel.o.call(void 0, rk_flags), _isel.i.call(void 0, _isel.rk_reg)]],
-    ['{1}:', exports.endbr, [_isel.i.call(void 0, rk_label)]],
-    ['jmp^ {1}', exports.br, [_isel.i.call(void 0, rk_label)]],
-    ['jnz^ {1}', exports.condbr, [_isel.i.call(void 0, rk_label), _isel.i.call(void 0, rk_flags)]],
+    ['test^ {2}, {2}', _isel.move, [_isel.o.call(void 0, exports.rk_flags), _isel.i.call(void 0, _isel.rk_reg)]],
+    ['{1}:', exports.endbr, [_isel.i.call(void 0, exports.rk_label)]],
+    ['jmp^ {1}', exports.br, [_isel.i.call(void 0, exports.rk_label)]],
+    ['jnz^ {1}', exports.condbr, [_isel.i.call(void 0, exports.rk_label), _isel.i.call(void 0, exports.rk_flags)]],
 ]
 
 const name2type = new Map()
@@ -97,6 +86,7 @@ function colorAll(
     const stores = new Map()
     const loads = new Map()
     const frozen = new Set()
+    const hints = new Map()
     let done = true
     let rootm = []
     function tryAltMatch(m) {
@@ -118,13 +108,13 @@ function colorAll(
             if (
                 name2type.get(mm[0]) == _isel.move &&
                 mm[1][0].kind == _isel.rk_reg &&
-                mm[1][1].kind == rk_stack
+                mm[1][1].kind == exports.rk_stack
             ) {
                 frozen.add(mm[1][0].id)
             }
             if (
                 name2type.get(mm[0]) == _isel.move &&
-                mm[1][0].kind == rk_stack &&
+                mm[1][0].kind == exports.rk_stack &&
                 mm[1][1].kind == _isel.rk_reg
             ) {
                 frozen.add(mm[1][1].id)
@@ -139,19 +129,21 @@ function colorAll(
         for (const v of mm[1].filter(e => e.kind == _isel.rk_reg)) {
             let is_st = false,
                 is_ld = false
-            if (name2type.get(mm[0]) == exports.add) {
-                if (mm[1][0] == v) is_st = true
-                is_ld = true
-            } else {
-                is_st = mm[1][0] == v
-                is_ld = mm[1][0] != v
-            }
+            
+            const argi = mm[1].indexOf(v)
+            const mode = operations.find(e => e[0] == mm[0])[2][argi].mode
+            if (mode == 'i' || mode == 'io') is_ld = true
+            if (mode == 'o' || mode == 'io') is_st = true
             if (!stores.has(v.id)) {
                 stores.set(v.id, [])
                 loads.set(v.id, [])
             }
             if (is_st) stores.get(v.id).push(i)
             if (is_ld) loads.get(v.id).push(i)
+        }
+        if (name2type.get(mm[0]) == _isel.move && mm[1][0].kind == _isel.rk_reg && mm[1][1].kind == _isel.rk_reg) {
+            hints.set(mm[1][0].id, mm[1][1].id)
+            hints.set(mm[1][1].id, mm[1][0].id)
         }
     }
     const usage = rootm.map(() => [])
@@ -189,21 +181,29 @@ function colorAll(
             console.trace()
             _common.ice.call(void 0, `${n} has color, can't recolor lul`)
         }
-        let r = 0
+        let r = 1
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
+        if (colors.has(hints.get(n))) if (!re.includes(colors.get(hints.get(n)))) r = colors.get(hints.get(n))
         while (re.includes(r)) r++
+        if (r == rcount && !re.includes(0)) r = 0
         if (r < rcount) colors.set(n, r)
         else spill.set(n, spillpoint++)
     }
     function doFreeze(n, to) {
-        if (!graph.has(n)) _common.ice.call(void 0, `graph does not have node ${n}, cannot color`)
+        if (!graph.has(n)) {
+            // if they are not in the graph, then they have no siblings.
+            // if they have no siblings, they cannot possibly conflict with, like, anything
+            // if they can't conflict with anything, you can just give them what they want
+            colors.set(n, to)
+            return
+        }
         let r = to
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
         if (re.includes(r))
             _common.ice.call(void 0, 
                 `graph precoloring failed: frozen register conflict: ${n} needs to become ${to}, but it is used`
             )
-        colors.set(n, r)
+            colors.set(n, r)
     }
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)
@@ -241,7 +241,7 @@ function colorAll(
             if (colors.has(arg.id)) {
                 arg.id = colors.get(arg.id)
             } else if (spill.has(arg.id)) {
-                arg.kind = rk_stack
+                arg.kind = exports.rk_stack
                 arg.id = spill.get(arg.id)
             }
         }
@@ -272,6 +272,7 @@ const regnames = [
 } exports.phyreg = phyreg;
  function completeGraphColor(target, strings) {
     function expandAssembly(aa) {
+        let price = 0
         const out = [
             `%define lo8_rax al`,
             `%define lo8_rbx bl`,
@@ -287,20 +288,28 @@ const regnames = [
             `%define lo8_r13 r13l`,
             `%define lo8_r14 r14l`,
             `%define lo8_r15 r15l`,
-        ].map(e=>`\x004${e}\x00r`)
+        ].map(e => `\x004${e}\x00r`)
         for (const a of aa) {
             let aq = a[0]
+            if (
+                name2type.get(a[0]) == _isel.move &&
+                a[1][0].kind == _isel.rk_reg &&
+                a[1][1].kind == _isel.rk_reg &&
+                a[1][0].id == a[1][1].id
+            ) {
+                continue
+            }
             for (let i = 0; i < a[1].length; i++) {
                 let tid = a[1][i].id
                 let tkind = a[1][i].kind
                 let tval = `<${tkind.description}:${tid}>`
 
-                if (tkind == rk_stack) tval = `[\x005rsp\x00r+\x005${tid * 8}\x00r]\x00r`
+                if (tkind == exports.rk_stack) tval = `[\x005rsp\x00r+\x005${tid * 8}\x00r]\x00r`
                 if (tkind == _isel.rk_reg) tval = `\x005${regnames[tid]}\x00r`
-                if (tkind == rk_phyreg) tval = `\x005${regnames[tid]}\x00r\x000`
-                if (tkind == rk_imm) tval = `\x005${tid}\x00r`
-                if (tkind == rk_label) tval = `\x003l_${tid}\x00r`
-                if (tkind == rk_dataref) tval = `\x004_gs${tid}\x00r`
+                if (tkind == exports.rk_phyreg) tval = `\x005${regnames[tid]}\x00r\x000`
+                if (tkind == exports.rk_imm) tval = `\x005${tid}\x00r`
+                if (tkind == exports.rk_label) tval = `\x003l_${tid}\x00r`
+                if (tkind == exports.rk_dataref) tval = `\x004_gs${tid}\x00r`
 
                 aq = aq.replaceAll(`{${i + 1}}`, tval)
             }
@@ -314,6 +323,9 @@ const regnames = [
                 const [pre, ...frag] = aq.split(';')
                 aq = `\x00+\x002${pre}\x00r\x000${frag.map(e => ';' + e).join('')}`
             }
+            if (aq.includes('    ') && name2type.get(a[0]) != exports.freeze) {
+                price++
+            }
             out.push(aq)
         }
         out.push(`\x003section .data\x00r`)
@@ -324,6 +336,7 @@ const regnames = [
                 )}\x00r,\x005 0\x00r`
             )
         }
+        if (process.env.PRINT_PRICE == 'yes') console.log(`price=${price}`)
         return out
     }
     let current = target

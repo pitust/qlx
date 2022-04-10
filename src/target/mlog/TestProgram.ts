@@ -22,8 +22,10 @@ import {
     br,
     syscall2,
     __phyreg,
+    rk_imm,
 } from '../crayons'
 import { finalizeColors } from '../highlight'
+import { rk_reg } from '../isel'
 import { Program, name } from '../targen'
 
 export class TestNativeProgram extends Program {
@@ -37,6 +39,7 @@ export class TestNativeProgram extends Program {
     strings: string[] = []
 
     emit(insn: insn, ...args: (ref | name)[]) {
+        if (args.includes(undefined)) throw new Error('undefined arg?')
         if (args[0] == args[1] && insn == move) return
         this.opstream.push([
             insn,
@@ -107,7 +110,6 @@ export class TestNativeProgram extends Program {
     }
     label(tgd: string): void {
         this.labelmap.set(tgd, this.labelidx)
-        console.log('l', tgd)
         this.emit(endbr, label(this.labelidx++))
     }
     br(tgd: string): void {
@@ -121,7 +123,9 @@ export class TestNativeProgram extends Program {
         throw new Error('Method not implemented.')
     }
     generate(): string {
-        return finalizeColors(completeGraphColor(this.opstream, this.strings).filter(e => !e.includes(';')))
+        return finalizeColors(
+            completeGraphColor(this.opstream, this.strings).filter(e => !e.includes(';'))
+        )
     }
     line(pos: string, source: string): void {}
     platformHookEnd(): void {
@@ -142,7 +146,40 @@ export class TestNativeProgram extends Program {
     retv(name: string): void {
         throw new Error('Method not implemented.')
     }
-    call(name: string): void {
+    call(ret0hint: name | null, name: string, args: name[]): name {
+        const argrefs: name[] = []
+        const mode: boolean[] = []
+        let ret0 = this.name2('ret0')
+        let isUnpinnedArgumentIntrinsic = false,
+            firstArgEqualsReturn = false,
+            refargCapable = false
+        if (name == '__intrin::__stroff_ssi') {
+            isUnpinnedArgumentIntrinsic = true
+            firstArgEqualsReturn = true
+        }
+        if (name == '__intrin::__ichg_is') {
+            isUnpinnedArgumentIntrinsic = true
+            firstArgEqualsReturn = true
+        }
+        if (name == '__intrin::__exit_vi') isUnpinnedArgumentIntrinsic = true
+        if (name == '__intrin::__poke8_vsi') {
+            isUnpinnedArgumentIntrinsic = true
+            refargCapable = true
+        }
+        for (let i = 0; i < args.length; i++) {
+            if (this.programNameToRef.get(args[i]).kind != rk_reg) {
+                argrefs.push(args[i])
+                mode.push(true)
+            } else {
+                let aname = this.name2(`a${i}`)
+                if (isUnpinnedArgumentIntrinsic) aname = this.name2(`unpinned-a${i}`)
+                if (refargCapable) aname = args[i]
+                if (firstArgEqualsReturn && ret0hint && i == 0) aname = ret0hint
+                this.move(aname, args[i])
+                argrefs.push(aname)
+                mode.push(false)
+            }
+        }
         if (name.startsWith('__intrin::')) {
             const iname = name.slice(10)
 
@@ -150,24 +187,23 @@ export class TestNativeProgram extends Program {
                 // 'a0 contains the sysno, 'a1 contains the value
                 const sysno_reg = this.obtainVirtualRegister()
                 const arg_reg = this.obtainVirtualRegister()
-                
-                // according to the pitust "madeupabi", a0 is in rax and so we can keep it there
 
-                this.emit(move, vreg(arg_reg), this.name2('a1')) // rdi <- rbx
+                this.emit(move, vreg(sysno_reg), argrefs[1]) // rax <- rbx
+                this.emit(move, vreg(arg_reg), argrefs[1]) // rdi <- rcx
                 this.emit(freeze, vreg(arg_reg), phyreg('rdi'))
-                this.emit(syscall, this.name2('a0'), this.name2('a0'), vreg(arg_reg))
-                return
+                this.emit(freeze, vreg(sysno_reg), phyreg('rax'))
+                this.emit(syscall, this.name2('ret0'), vreg(sysno_reg), vreg(arg_reg))
+                return ret0
             }
             if (iname == '__syscall3_viiii') {
                 // 'a0 contains the sysno, 'a1 contains the value
-                const sysno_reg = this.obtainVirtualRegister()
                 const a0 = this.obtainVirtualRegister()
                 const a1 = this.obtainVirtualRegister()
                 const a2 = this.obtainVirtualRegister()
                 const t1 = this.obtainVirtualRegister()
                 const a3 = this.obtainVirtualRegister()
-                
-                // 
+
+                //
                 // a0 (rbx) -> rax
                 // a3 (rdi) -> t1
                 // a1 (rcx) -> rdi
@@ -179,37 +215,46 @@ export class TestNativeProgram extends Program {
                 this.emit(freeze, vreg(a2), phyreg('rsi'))
                 this.emit(freeze, vreg(a3), phyreg('rdx'))
 
-                this.emit(move, vreg(a0), this.name2('a0'))
-                this.emit(move, vreg(t1), this.name2('a3'))
-                this.emit(move, vreg(a1), this.name2('a1'))
-                this.emit(move, vreg(a2), this.name2('a2'))
-                this.emit(move, vreg(a3), vreg(t1))
+                this.emit(move, vreg(a0), argrefs[0])
+                if (!mode[3]) this.emit(move, vreg(t1), argrefs[3])
+                this.emit(move, vreg(a1), argrefs[1])
+                this.emit(move, vreg(a2), argrefs[2])
+                if (!mode[3]) this.emit(move, vreg(a3), vreg(t1))
+                if (mode[3]) this.emit(move, vreg(a3), argrefs[3])
 
                 this.emit(syscall2, vreg(a0), vreg(a0), vreg(a1), vreg(a2), vreg(a3))
-                return
+                this.emit(move, ret0, vreg(a0))
+                return ret0
             }
             if (iname == '__stroff_ssi') {
-                this.emit(move, this.name2('ret0'), this.name2('a0'))
-                this.emit(add, this.name2('ret0'), this.name2('a1'))
-                return
+                if (mode[0]) {
+                    if (ret0hint) ret0 = ret0hint
+                    this.emit(move, ret0, argrefs[0])
+                    this.emit(add, ret0, argrefs[1])
+                } else {
+                    ret0 = argrefs[0]
+                    this.emit(add, ret0, argrefs[1])
+                }
+                return ret0
             }
             if (iname == '__poke8_vsi') {
-                this.emit(poke8, this.name2('a0'), this.name2('a1'))
-                return
+                this.emit(poke8, argrefs[0], argrefs[1])
+                return ret0
             }
             if (iname == '__ichg_is') {
-                this.emit(move, this.name2('ret0'), this.name2('a0'))
-                return
+                if (ret0hint) ret0 = ret0hint
+                this.emit(move, ret0, argrefs[0])
+                return ret0
             }
             if (iname == '__exit_vi') {
                 const sysno_reg = this.obtainVirtualRegister()
                 const ecode_reg = this.obtainVirtualRegister()
+                this.emit(move, vreg(ecode_reg), argrefs[0])
                 this.emit(move, vreg(sysno_reg), imm(60))
-                this.emit(move, vreg(ecode_reg), this.name2('a0'))
                 this.emit(freeze, vreg(sysno_reg), phyreg('rax'))
                 this.emit(freeze, vreg(ecode_reg), phyreg('rdi'))
                 this.emit(syscall, vreg(sysno_reg), vreg(sysno_reg), vreg(ecode_reg))
-                return
+                return ret0
             }
         }
         throw new Error(`cannot call ${name} (yet)`)

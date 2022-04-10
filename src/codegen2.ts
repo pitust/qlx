@@ -84,7 +84,12 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
     let programLongestOpcode = 4
     for (const blk of blocks) {
         const id = blookup(blk)
-        program.label(`${mod}::${fn}.${id}`)
+        if (
+            !(prev => prev && prev.cond == JumpCond.AlwaysNoMerge && prev.targets[0] == blk)(
+                blocks[blocks.indexOf(blk) - 1]
+            )
+        )
+            program.label(`${mod}::${fn}.${id}`)
         for (const op of blk.ops) {
             program.line(op.pos, op.meta?.line ?? '')
             if (op.op == Opcode.TypeGlob || op.op == Opcode.TypeLoc) {
@@ -100,17 +105,16 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                     program.name2(`a${op.args[1]}`)
                 )
             } else if (op.op == Opcode.Call) {
-                for (let i = 0; i < op.args.length - 2; i++) {
-                    program.move(
-                        program.name2(`a${i}`),
-                        immref(op.args[i + 2])
-                    )
-                }
-                program.call(`${op.args[1]}`)
+                const retreg = program.call(
+                    op.args[0] ? immref(op.args[0]) : null,
+                    `${op.args[1]}`,
+                    op.args.slice(2).map(arg => immref(arg))
+                )
                 if (op.args[0]) {
-                    program.move(immref(op.args[0]), program.name2(`ret0`))
+                    if (immref(op.args[0]) != retreg) program.move(immref(op.args[0]), retreg)
                 }
-                if (!`${op.args[1]}`.startsWith('__intrin::')) functionCallReferenceSet.add(`${op.args[1]}`)
+                if (!`${op.args[1]}`.startsWith('__intrin::'))
+                    functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 program.move(immref(op.args[0]), program.name(`${mod}::_init::${op.args[1]}`))
             } else if (op.op == Opcode.LdLoc) {
@@ -278,7 +282,8 @@ export function generateCode(
     if (functionCallReferenceSet.size && options.noEnd) {
         buf.push(process.env.QLXCOLOR == 'on' ? `    \x1b[34mend\x1b[0m` : '    end')
     }
-    for (const u of functionCallReferenceSet) if (!u.startsWith('__intrin::')) buf.push(...buffers.get(u))
+    for (const u of functionCallReferenceSet)
+        if (!u.startsWith('__intrin::')) buf.push(...buffers.get(u))
     if (!options.cgOutput_suppress) {
         writeCode(buf.join('\n'))
     }

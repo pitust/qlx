@@ -13,37 +13,28 @@
 %define lo8_r14 r14l
 %define lo8_r15 r15l
 l_0:
-    mov rdi, _gs0
-    mov rax, rdi
+    mov rsi, _gs0
+    mov rbx, rsi
 l_1:
-    mov rbx, rax
-    mov rcx, 5
-    mov rax, rbx
-    add rax, rcx
-    mov rsi, rax
+    mov rcx, rbx
+    add rcx, 5
 l_2:
     mov rdx, 57
 l_3:
-    mov rbx, rsi
+    mov rbx, rcx
     mov rcx, rdx
     mov byte [rbx], lo8_rcx
 l_4:
-    mov rdx, rdi
+    mov rcx, rsi
 l_5:
-    mov rbx, rdx
-    mov rax, rbx
-    mov rsi, rax
+    mov rbx, rcx
 l_6:
 l_7:
-    mov rbx, 1
-    mov rcx, 1
-    mov rdx, rsi
-    mov rsi, 6
-    mov rax, rbx
-    mov rbx, rsi
-    mov rdi, rcx
-    mov rsi, rdx
     mov rdx, rbx
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, rdx
+    mov rdx, 7
     syscall 
 l_8:
     mov rax, 60

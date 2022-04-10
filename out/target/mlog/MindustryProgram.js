@@ -12,7 +12,7 @@
 var _highlight = require('../highlight');
 var _targen = require('../targen');
 
- class MindustryProgram extends _targen.Program {constructor(...args) { super(...args); MindustryProgram.prototype.__init.call(this);MindustryProgram.prototype.__init2.call(this);MindustryProgram.prototype.__init3.call(this); }
+ class MindustryProgram extends _targen.Program {constructor(...args2) { super(...args2); MindustryProgram.prototype.__init.call(this);MindustryProgram.prototype.__init2.call(this);MindustryProgram.prototype.__init3.call(this); }
     __init() {this._code = []}
     __init2() {this.currentline = ''}
     __init3() {this.nameLookup = new Map()}
@@ -72,11 +72,15 @@ var _targen = require('../targen');
         this.nameLookup.set(sym, `${_highlight.glob}t${n}${_highlight.nostyle}`)
         return sym
     }
-    call(name) {
+    call(_ret0hint, name, args) {
+        for (let i = 0; i < args.length; i++) {
+            this.move(this.name2(`a${i}`), args[i])
+        }
         this.emit(
             `    ${_highlight.fmt.cflow}op ${_highlight.selector}add ${_highlight.ri}lr.${name} ${_highlight.selector}@counter ${_highlight.ri}2${_highlight.nostyle}`
         )
         this.emit(`    ${_highlight.fmt.cflow}jump ${_highlight.label}${name} ${_highlight.selector}always${_highlight.nostyle}`)
+        return this.name2('ret0')
     }
     retv(name) {
         this.emit(`    ${_highlight.fmt.cflow}set ${_highlight.selector}@counter ${_highlight.ri}lr.${name}${_highlight.nostyle}`)
