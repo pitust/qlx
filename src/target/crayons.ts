@@ -1,6 +1,18 @@
 import { allocateColors } from './colors'
 import { ice } from './common'
-import { rk_reg, i, o, io, move, resolveMatch, insn, ref, opdef, refkind, printMatches } from './isel'
+import {
+    rk_reg,
+    i,
+    o,
+    io,
+    move,
+    resolveMatch,
+    insn,
+    ref,
+    opdef,
+    refkind,
+    printMatches,
+} from './isel'
 
 export { rk_reg, insn, move, ref } from './isel'
 export const add = Symbol.for('add') as insn
@@ -72,14 +84,13 @@ const rcount = 14 // 14 regs on x86
 function colorAll(
     matchto: [insn, ref[]][]
 ): { done: false; res: [insn, ref[]][] } | { done: true; res: [string, ref[]][] } {
-    let idalloc =
-        Math.max(
-            0,
-            ...matchto
-                .flatMap(e => e[1])
-                .filter(e => e.kind == rk_reg)
-                .map(e => e.id)
-        ) + 1
+    let idalloc = Math.max(
+        0,
+        ...matchto
+            .flatMap(e => e[1])
+            .filter(e => e.kind == rk_reg)
+            .map(e => e.id)
+    )
     const precolor = new Map<number, number>() // map[reg id] => reg, precolored registers for abi and shit
     const earlycolor = new Set<number>() // set[reg id], color those guys first
     const altmatch_id = new Map<number, number>()
@@ -129,7 +140,7 @@ function colorAll(
         for (const v of mm[1].filter(e => e.kind == rk_reg)) {
             let is_st = false,
                 is_ld = false
-            
+
             const argi = mm[1].indexOf(v)
             const mode = operations.find(e => e[0] == mm[0])[2][argi].mode
             if (mode == 'i' || mode == 'io') is_ld = true
@@ -148,9 +159,18 @@ function colorAll(
     }
     const usage: number[][] = rootm.map(() => [])
     for (const [id, fml] of stores) {
-        const start = fml[0]
-        const end = loads.get(id).slice(-1)[0]
-        for (let i = start; i <= end; i++) usage[i].push(id)
+        for (let load of loads.get(id).slice().reverse()) {
+            if (name2type.get(rootm[load][0]) == move && !usage[load].includes(id)) load--
+            while (true) {
+                if (usage[load].includes(id)) break
+                if (fml.includes(load)) break
+                // if (load == 0) ice('no store') // FIXME: ices with gen2 and poke8
+                usage[load].push(id)
+                if (load == 0) break
+                load--
+            }
+        }
+        for (const str of fml) if (!usage[str].includes(id)) usage[str].push(id)
     }
     const graph = new Map<number, Set<number>>()
     const deleted = new Set<number>()
@@ -160,6 +180,14 @@ function colorAll(
     function* nodes() {
         for (const n of graph.keys())
             if (!deleted.has(n)) yield [n, node(n)] as [number, Set<number>]
+    }
+    if (process.env.PRINT_USAGE_TABLES == 'yes') {
+        console.log('##############')
+        let i = 0
+        for (const u of usage) {
+            process.stdout.write(`${u.join(' | ').padStart(20)} | `)
+            printMatches([[name2type.get(rootm[i][0]).description, rootm[i++][1]]])
+        }
     }
     for (const quantum of usage) {
         for (const u1 of quantum) {
@@ -183,7 +211,8 @@ function colorAll(
         }
         let r = 1
         const re = [...node(n)].filter(ee => colors.has(ee)).map(ee => colors.get(ee))
-        if (colors.has(hints.get(n))) if (!re.includes(colors.get(hints.get(n)))) r = colors.get(hints.get(n))
+        if (colors.has(hints.get(n)))
+            if (!re.includes(colors.get(hints.get(n)))) r = colors.get(hints.get(n))
         while (re.includes(r)) r++
         if (r == rcount && !re.includes(0)) r = 0
         if (r < rcount) colors.set(n, r)
@@ -203,7 +232,7 @@ function colorAll(
             ice(
                 `graph precoloring failed: frozen register conflict: ${n} needs to become ${to}, but it is used`
             )
-            colors.set(n, r)
+        colors.set(n, r)
     }
     for (const [pcn, pct] of precolor) {
         doFreeze(pcn, pct)

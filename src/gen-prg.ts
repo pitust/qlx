@@ -244,7 +244,6 @@ function computeExpressionReferences(blkz: block[]): Map<expr, number> {
                         e.type == 'Eq' ||
                         e.type == 'NEq'
                     ) {
-                        console.log(e.left, e.right, e.type)
                         scanRefs(e.left)
                         scanRefs(e.right)
                         return
@@ -405,10 +404,12 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
     function possiblyHint(e: expr, nam: name) {
         if (allrc.get(e) == 1 && !completed.has(e)) attemptCompletion(e, nam, true)
     }
+    const immvalues = new Map<expr, number>()
     function attemptCompletion(e: expr, nameHint: name = tg(), hinted: boolean = false) {
         if (completed.has(e)) return false
         if (e.type == 'Number') {
             completed.set(e, program.imm(e.value))
+            immvalues.set(e, e.value)
             return true
         }
         if (e.type == 'String') {
@@ -433,10 +434,25 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
             possiblyHint(e.left, nameHint)
             attemptCompletion(e.left)
             attemptCompletion(e.right)
+            if (immvalues.has(e.left) && immvalues.has(e.right)) {
+                const sim: Record<string, (a: number, b: number) => number> = {
+                    LT(a, b) {
+                        return +(a < b)
+                    },
+                    Add(a, b) {
+                        return +(a + b)
+                    },
+                    Sub(a, b) {
+                        return +(a - b)
+                    },
+                } as const
+                immvalues.set(e, sim[e.type](immvalues.get(e.left), immvalues.get(e.right)))
+                completed.set(e, program.imm(immvalues.get(e)))
+                return
+            }
             if (!completed.has(e.left)) return false
             if (!completed.has(e.right)) return false
-            console.log(allrc.get(e.left))
-            if (allrc.get(e.left) == 1) name = completed.get(e.left)
+            if (allrc.get(e.left) == 1 && !immvalues.has(e.left)) name = completed.get(e.left)
             const names = {
                 LT: 'lt',
                 Add: 'add',
@@ -487,15 +503,13 @@ export function buildUnit(program: Program, o: SSAUnit, mod: string, fn: string)
             } else if (op.type == 'ReturnValueBarrier') {
                 program.move(program.name2(`ret0`), getex(op.value))
             } else if (op.type == 'CallSynchronisationBarrier') {
-                for (let i = 0; i < op.args.length; i++) {
-                    if (allrc.get(op.args[i]) == 1 && !completed.has(op.args[i])) {
-                        possiblyHint(op.args[i], program.name2(`a${i}`))
-                    }
-                    program.move(program.name2(`a${i}`), getex(op.args[i]))
-                }
-                program.call(`${op.target}`)
                 const return_value = tg()
-                program.move(return_value, program.name2(`ret0`))
+                const actual_return_value = program.call(
+                    return_value,
+                    `${op.target}`,
+                    op.args.map(getex)
+                )
+                program.move(return_value, actual_return_value)
                 completed.set(op, return_value)
             } else {
                 // _fatal(`bad op ${op.type}`)

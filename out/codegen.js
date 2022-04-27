@@ -126,9 +126,9 @@ function generateUnit(mod, fn, unit, writeCode) {
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     code.push(
-                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${
-                            op.args[1]
-                        }${_highlight.nostyle} ${immref(op.args[i + 2])}`
+                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${op.args[1]}${_highlight.nostyle} ${immref(
+                            op.args[i + 2]
+                        )}`
                     )
                 }
                 code.push(
@@ -337,9 +337,7 @@ function generateUnit(mod, fn, unit, writeCode) {
     for (const [nm, u] of units[1]) {
         let buf1 = []
         buffers.set(`${nm}`, buf1)
-        buf1.push(
-            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`
-        )
+        buf1.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`)
         const mod = nm.split('::')
         const fn = mod.pop()
         generateUnit(mod.join('::'), fn, u, code => {

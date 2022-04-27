@@ -326,14 +326,17 @@ function continueBlockCheck(
                 if (tgd.startsWith('__intrin::') && !gFn.has(tgd)) {
                     // intrinsics are magical: they are autoderived on first use
                     const typespec = [...tgd.split('_').slice(-1)[0]]
-                    const ts = typespec.map(e => ({
-                        v: PrimitiveType.Void,
-                        i: PrimitiveType.Float,
-                        s: PrimitiveType.String
-                    })[e])
+                    const ts = typespec.map(
+                        e =>
+                            ({
+                                v: PrimitiveType.Void,
+                                i: PrimitiveType.Float,
+                                s: PrimitiveType.String,
+                            }[e])
+                    )
                     gFn.set(tgd, {
                         ret: ts[0],
-                        args: ts.slice(1)
+                        args: ts.slice(1),
                     })
                 }
                 if (!gFn.has(tgd)) {
@@ -354,7 +357,11 @@ function continueBlockCheck(
                         console.log(
                             `error: ${op.pos}: function ${tgd}/${callargs.length} cannot be called because parameters are incorrect.`
                         )
-                        reportTypeDiff(fndata.args[i], immtype(callargs[i], ltypes), `here: %a vs %b`)
+                        reportTypeDiff(
+                            fndata.args[i],
+                            immtype(callargs[i], ltypes),
+                            `here: %a vs %b`
+                        )
                         checked = false
                         return
                     }

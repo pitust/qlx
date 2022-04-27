@@ -126,9 +126,9 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             } else if (op.op == Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
                     code.push(
-                        `    ${fmt.assign}set ${ri}arg-${i}.${
-                            op.args[1]
-                        }${nostyle} ${immref(op.args[i + 2])}`
+                        `    ${fmt.assign}set ${ri}arg-${i}.${op.args[1]}${nostyle} ${immref(
+                            op.args[i + 2]
+                        )}`
                     )
                 }
                 code.push(
@@ -337,9 +337,7 @@ export function generateCode(
     for (const [nm, u] of units[1]) {
         let buf1 = []
         buffers.set(`${nm}`, buf1)
-        buf1.push(
-            process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`
-        )
+        buf1.push(process.env.QLXCOLOR == 'on' ? `\x1b[0;33mfn.${nm}\x1b[0m:` : `fn.${nm}:`)
         const mod = nm.split('::')
         const fn = mod.pop()
         generateUnit(mod.join('::'), fn, u, code => {

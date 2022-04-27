@@ -30,6 +30,7 @@ export function resolveMatch(
     let bestscore = Infinity // no choice
     let bestchoices = []
     let al1 = []
+    const DEBUG = false
     nextchoice: for (const [nam, kind, aclass] of operations) {
         if (kind != opkind) continue
         if (aclass.length != opargs.length)
@@ -52,6 +53,7 @@ export function resolveMatch(
             if (targetc.mode == 'i') {
                 // resolve by prepending a matching move transform
                 try {
+                    if (DEBUG) console.log('input assign: v' + aether)
                     const middle: ref = { kind: targetc.kind, id: aether, type: 'aetheral' }
                     const [tscore, tchoices] = resolveMatch(
                         operations,
@@ -71,7 +73,8 @@ export function resolveMatch(
             } else if (targetc.mode == 'o') {
                 // resolve by appending a matching move transform
                 try {
-                    const middle: ref = { kind: targetc.kind, id: aetherkind++, type: 'aetheral' }
+                    if (DEBUG) console.log('output assign: v' + aether)
+                    const middle: ref = { kind: targetc.kind, id: aether, type: 'aetheral' }
                     const [tscore, tchoices] = resolveMatch(
                         operations,
                         move,
@@ -90,7 +93,8 @@ export function resolveMatch(
             } else {
                 // resolve by prepending then appending a matching move transform
                 try {
-                    const middle: ref = { kind: targetc.kind, id: aetherkind++, type: 'aetheral' }
+                    if (DEBUG) console.log('inout assign: v' + aether)
+                    const middle: ref = { kind: targetc.kind, id: aether, type: 'aetheral' }
                     const [tscore, tchoices] = resolveMatch(
                         operations,
                         move,
@@ -135,11 +139,11 @@ export function resolveMatch(
 export function printMatches(m: [string, ref[]][]) {
     for (const mm of m) {
         console.log(
-            '\x1b[31m%s\x1b[0m',
+            '\x1b[32;1m%s\x1b[0m',
             mm[0],
             ...mm[1].map(
                 e =>
-                    `\x1b[32m${e.kind.description}:\x1b[34m${e.type == 'real' ? '' : 'v'}${
+                    `\x1b[35;1m${e.kind.description}:\x1b[34m${e.type == 'real' ? '' : 'v'}${
                         e.id
                     }\x1b[0m`
             )
