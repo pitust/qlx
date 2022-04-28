@@ -24,7 +24,7 @@ let aflist = [0]
 export function resolveMatch(
     operations: opdef[],
     opkind: insn,
-    opargs: ref[],
+    realopargs: ref[],
     deep: 'deep' | 'shallow'
 ) {
     let bestscore = Infinity // no choice
@@ -33,11 +33,22 @@ export function resolveMatch(
     const DEBUG = false
     nextchoice: for (const [nam, kind, aclass] of operations) {
         if (kind != opkind) continue
+        let opargs = realopargs
+        let score = 1
+        let splatFrom: ref | null = null
+        if (aclass[0].mode == 'io' && aclass.length + 1 == realopargs.length) {
+            // the op uses io but the backend splatted it into i+o, so mark emit the move and splat out the opargs
+            splatFrom = realopargs[1]
+            opargs = opargs.filter((_, i) => i != 1)
+        }
         if (aclass.length != opargs.length)
             ice(`[${nam}] aclass.length (${aclass.length}) != opargs.length (${opargs.length})`)
         const ochoice = [nam, [...opargs]] as [string, ref[]]
         let choices = [ochoice]
-        let score = 1
+        if (splatFrom) {
+            const [, tchoices] = resolveMatch(operations, move, [opargs[0], splatFrom], 'shallow')
+            choices = [...tchoices, ...choices]
+        }
         let al2 = []
         for (let i = 0; i < aclass.length; i++) {
             const realc: ref = opargs[i]
@@ -132,7 +143,9 @@ export function resolveMatch(
     if (bestscore == Infinity && deep == 'shallow') throw 'shallow recursion prohibited!'
     if (bestscore == Infinity)
         ice(
-            `cannot select "${opkind.description} ${opargs.map(e => e.kind.description).join(' ')}"`
+            `cannot select "${opkind.description} ${realopargs
+                .map(e => e.kind.description)
+                .join(' ')}"`
         )
     return [bestscore, bestchoices] as const
 }

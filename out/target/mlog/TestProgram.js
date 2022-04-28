@@ -62,13 +62,11 @@ var _targen = require('../targen');
     }
     binop(tgd, left, op, right) {
         if (op == 'add') {
-            this.emit(_crayons.move, tgd, left)
-            this.emit(_crayons.add, tgd, right)
+            this.emit(_crayons.add, tgd, left, right)
             return
         }
         if (op == 'sub') {
-            this.emit(_crayons.move, tgd, left)
-            this.emit(_crayons.sub, tgd, right)
+            this.emit(_crayons.sub, tgd, left, right)
             return
         }
         throw new Error('Method not implemented.')
@@ -229,11 +227,10 @@ var _targen = require('../targen');
             if (iname == '__stroff_ssi') {
                 if (mode[0]) {
                     if (ret0hint) ret0 = ret0hint
-                    this.emit(_crayons.move, ret0, argrefs[0])
-                    this.emit(_crayons.add, ret0, argrefs[1])
+                    this.emit(_crayons.add, ret0, argrefs[0], argrefs[1])
                 } else {
                     ret0 = argrefs[0]
-                    this.emit(_crayons.add, ret0, argrefs[1])
+                    this.emit(_crayons.add, ret0, ret0, argrefs[1])
                 }
                 return ret0
             }
@@ -258,5 +255,8 @@ var _targen = require('../targen');
             }
         }
         throw new Error(`cannot call ${name} (yet)`)
+    }
+    platformHookPrintFlush(p) {
+        throw new Error('Method not implemented.')
     }
 } exports.TestNativeProgram = TestNativeProgram;

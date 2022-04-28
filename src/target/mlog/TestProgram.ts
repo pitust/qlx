@@ -62,13 +62,11 @@ export class TestNativeProgram extends Program {
     }
     binop(tgd: name, left: name, op: 'sub' | 'add' | 'lt' | 'eq', right: name): void {
         if (op == 'add') {
-            this.emit(move, tgd, left)
-            this.emit(add, tgd, right)
+            this.emit(add, tgd, left, right)
             return
         }
         if (op == 'sub') {
-            this.emit(move, tgd, left)
-            this.emit(sub, tgd, right)
+            this.emit(sub, tgd, left, right)
             return
         }
         throw new Error('Method not implemented.')
@@ -229,11 +227,10 @@ export class TestNativeProgram extends Program {
             if (iname == '__stroff_ssi') {
                 if (mode[0]) {
                     if (ret0hint) ret0 = ret0hint
-                    this.emit(move, ret0, argrefs[0])
-                    this.emit(add, ret0, argrefs[1])
+                    this.emit(add, ret0, argrefs[0], argrefs[1])
                 } else {
                     ret0 = argrefs[0]
-                    this.emit(add, ret0, argrefs[1])
+                    this.emit(add, ret0, ret0, argrefs[1])
                 }
                 return ret0
             }
@@ -258,5 +255,8 @@ export class TestNativeProgram extends Program {
             }
         }
         throw new Error(`cannot call ${name} (yet)`)
+    }
+    platformHookPrintFlush(p: name): void {
+        throw new Error('Method not implemented.')
     }
 }
