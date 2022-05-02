@@ -1,32 +1,32 @@
 
 options = {
-    'bind-loads': 'bind registers to locals when loaded',
-    'const-prop': 'propagate constants accross the code',
-    'eliminate-branches': 'eliminate branches in cases where fallthrough is enough',
-    'eliminate-dead-code': 'eliminate some dead instructions.',
-    'forward': 'forward moves when used once',
-    'inline': '[raw-arg-refs] inline small functions',
-    'interleave-ssa': 'interlave code and SSA opcodes',
-    'merge-print': 'merge sequential constant-value prints left by the optimizer',
-    'merge-blocks': 'merge blocks that must come after each other',
-    'max': 'enable as much opt stuff as possible',
-    'no-end': '[no-safe-abort] remove the last `end` opcode from the code',
-    'no-safe-abort': 'disable compiler-generated safety abort loops',
-    'raw-arg-refs': 'use raw argument references',
-    'reorder-blocks': 'use weighted block reordering, rather than sequential block order',
-    'strip-comments': 'strip comments from the output to save on lines',
+    'bind-loads': 'Bind registers to locals when loaded',
+    'const-prop': 'Propagate constants accross the code',
+    'eliminate-branches': 'Eliminate branches in cases where fallthrough is enough',
+    'eliminate-dead-code': 'Eliminate some dead instructions.',
+    'forward': 'Forward moves when used once',
+    'inline': '[raw-arg-refs] Inline small functions',
+    'interleave-ssa': 'Interlave code and SSA opcodes',
+    'merge-print': 'Merge sequential constant-value prints left by the optimizer',
+    'merge-blocks': 'Merge blocks that must come after each other',
+    'max': 'Enable as much opt stuff as possible',
+    'no-end': '[no-safe-abort] Remove the last `end` opcode from the code',
+    'no-safe-abort': 'Disable compiler-generated safety abort loops',
+    'raw-arg-refs': 'Use raw argument references',
+    'reorder-blocks': 'Use weighted block reordering, rather than sequential block order',
+    'strip-comments': 'Strip comments from the output to save on lines',
     
     'gen2': 'Enable WIP gen2 code generation, in preparation for machine code',
     'prg': 'Enable experimental less-optimizing prg codegen (pretty reasonable codegen)',
 
-    'dump=ast': 'dump AST',
-    'dump=prg-dfg': '[prg] dump the PRG data-flow graph',
-    'dump=prg-dfg-expandvars': '[dump=prg-dfg] expand variables in PRG data-flow graph dumps',
-    'dump=fresh-ssa': 'dump initial SSA contents',
-    'dump=ssa-pre-opt': 'dump SSA before optimization',
-    'dump=ssa-pre-emit': 'dump final SSA to be emitted',
-    'dump=native-graph-coloring': 'dump native codegen graph coloring results',
-    'cg-output=suppress': 'do not output anything',
+    'dump=ast': 'Dump AST',
+    'dump=prg-dfg': '[prg] Dump the PRG data-flow graph',
+    'dump=prg-dfg-expandvars': '[dump=prg-dfg] Expand variables in PRG data-flow graph dumps',
+    'dump=fresh-ssa': 'Dump initial SSA contents',
+    'dump=ssa-pre-opt': 'Dump SSA before optimization',
+    'dump=ssa-pre-emit': 'Dump final SSA to be emitted',
+    'dump=native-graph-coloring': 'Dump native codegen graph coloring results',
+    'cg-output=suppress': 'Do not output anything',
 }
 keydata = []
 for k in options.keys():
@@ -43,7 +43,7 @@ def mapname(s: str) -> str:
         data[i] = data[i][0].upper() + data[i][1:]
     return ''.join(data).replace('=', '_')
 
-longest_name = 0
+longest_name = 28
 
 for nam in options.keys():
     longest_name = len(nam) + 2 if len(nam) + 2 > longest_name else longest_name
@@ -54,7 +54,7 @@ tsiface = [
 ]
 struct = [
     'const options = {',
-    '    target: \'default\','
+    '    target: \'none\','
 ]
 parsecode = [
     'let input = null;',
@@ -77,9 +77,27 @@ parsecode = [
     '    if (arg.startsWith(\'--target=\')) { arg = arg.slice(9); isNextTarget = true; }',
     '    if (isNextTarget) { isNextTarget = false; options.target = arg; continue; }'
 ]
+
+targets = [
+    ('mlog', []),
+    ('native', [
+        ('x86_64', []),
+        ('aarch64', [])
+    ])
+]
+
 checkcode = []
 helpmsg = []
-helpmsg.append('Usage: qlx [OPTIONS...] <input> [-o<output>]')
+helpmsg.append('Usage: qlx [OPTIONS...] <input> [-o <output>]')
+helpmsg.append('    --target <codegen>[,OPTION...]' + (' ' * (longest_name - 28)) + ' - Set the target to compile for. Nested targets are delimited with commas. Available targets:')
+def print_target_tree(tip, depth):
+    if len(tip[1]):
+        helpmsg.append('    ' + ' ' * longest_name + '     ' + ' ' * depth + ' - ' + tip[0] + ':')
+        for k in tip[1]: print_target_tree(k, depth + 2)
+    else:
+        helpmsg.append('    ' + ' ' * longest_name + '     ' + ' ' * depth + ' - ' + tip[0])
+for k in targets: print_target_tree(k, 2)
+
 for opt in options.keys():
     paddng = " " * (4 + longest_name + 2) + "   "
     helplines = options[opt].splitlines()
@@ -119,7 +137,7 @@ parsecode.append('    process.exit(1);')
 parsecode.append('}')
 for chkval in checkcode:
     parsecode.append(chkval)
-parsecode.append('if (!input) _printHelpMessage();')
+parsecode.append('if (!input || options.target == \'none\') _printHelpMessage();')
 parsecode.append('onCLIParseComplete(options, input!, output);')
 
 print('\n'.join([

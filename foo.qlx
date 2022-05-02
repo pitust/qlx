@@ -2,3 +2,5 @@
 fn func { } -> float
     return 3
 end
+
+print func/0
