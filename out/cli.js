@@ -5,6 +5,10 @@ var _codegen22 = require('./codegen2');
 var _fs = require('fs');
 
 var _genprg = require('./gen-prg');
+var _parseqlx = require('./parseqlx');
+var _parser2 = require('./parser2');
+var _dumpast = require('./dumpast');
+var _highlight = require('./target/highlight');
 
  function onCLIParseComplete(o, input, output) {
     Object.assign(_middlegen.options, o)
@@ -22,11 +26,23 @@ var _genprg = require('./gen-prg');
         _middlegen.options.mergeBlocks = true
         _middlegen.options.max = true
     }
+
+    const ast = _middlegen.options.frontend_modern
+        ? _parser2.parse.call(void 0, input, _fs.readFileSync.call(void 0, input).toString())
+        : _middlegen.options.frontend_qlxasm
+        ? _parser2.parseasm.call(void 0, input, _fs.readFileSync.call(void 0, input).toString())
+        : _parseqlx.parseprogram.call(void 0, _fs.readFileSync.call(void 0, input).toString())
+    if (_middlegen.options.dump_ast) _dumpast.dumpAstNode.call(void 0, ast)
+
     const writeCode = (code) => (output ? _fs.writeFileSync.call(void 0, output, code) : console.log(code))
-    const u = _middlegen.generateSSA.call(void 0, input)
+    const u = _middlegen.generateSSA.call(void 0, ast)
     if (_middlegen.options.dump_freshSsa) {
         _middlegen.dumpSSA.call(void 0, u[0])
         for (const [, p] of u[1]) _middlegen.dumpSSA.call(void 0, p)
+    }
+    if (_middlegen.options.frontend_qlxasm) {
+        console.log(_highlight.finalizeColors.call(void 0, u[0].startBlock.ops.filter(e => e.op == _middlegen.Opcode.Asm).map(e => e.args[0]).map(e => e.endsWith(':')?e:'    '+e)))
+        process.exit(1)
     }
     if (!_typechk.checkAllTypes.call(void 0, u)) {
         console.log('fatal error: type check failed; exiting')

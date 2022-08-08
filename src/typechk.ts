@@ -295,6 +295,28 @@ function continueBlockCheck(
                     ltypes.set(out.reg, PrimitiveType.Float)
                 }
                 break
+            case Opcode.AsmSetSlot:
+            case Opcode.Asm:
+                break
+            case Opcode.AsmGetSlot:
+                const [_to, _slot, nam, kind] = op.args    
+                const out = <{ reg: number }>op.args[0]
+                if (kind == Opcode.LdGlob) {
+                    if (!gTy.has(<string>nam)) {
+                        console.log('No such variable: ' + <string>nam)
+                        checked = false
+                        return
+                    }
+                    ltypes.set(out.reg, gTy.get(<string>nam))
+                } else if (kind == Opcode.LdLoc) {
+                    if (!vTy.has(<string>nam)) {
+                        console.log('No such local variable: ' + <string>nam)
+                        checked = false
+                        return
+                    }
+                    ltypes.set(out.reg, vTy.get(<string>nam))
+                }
+                break
             case Opcode.Function:
                 const target = <string>op.args[0]
                 const argc = op.args.length - 2

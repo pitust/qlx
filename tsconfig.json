@@ -1,7 +1,9 @@
 {
-  "compilerOptions": {
-    "strictNullChecks": false,
-    "target": "ES2021",
-    "esModuleInterop": true
-  }
+    "compilerOptions": {
+        "strictNullChecks": false,
+        "target": "ES2021",
+        "esModuleInterop": true,
+        "moduleResolution": "node",
+        "resolveJsonModule": true
+    }
 }

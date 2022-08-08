@@ -93,7 +93,7 @@ export class ast {
     pos: string
     codeline: string
     range: [number, number]
-    constructor(public type: string, public children: (string | ast)[]) {
+    constructor(public type: string, public children: (string | ast | (string|ast)[])[]) {
         this.pos = `${currentfile}:${line}:${col}`
         this.codeline = codeline
         this.range = <any>range

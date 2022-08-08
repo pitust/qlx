@@ -1,22 +1,6 @@
 import { inspect } from 'util'
-import {
-    options,
-    JumpCond,
-    OpArg,
-    Opcode,
-    PrimitiveType,
-    SSABlock,
-    SSAUnit,
-    Type,
-    dumpSSA,
-} from './middlegen'
-import {
-    optimize,
-    orderBlocks,
-    calculateCost,
-    calculateCounterCost,
-    makeInliningChoice,
-} from './optimizer'
+import { options, JumpCond, OpArg, Opcode, PrimitiveType, SSABlock, SSAUnit, Type, dumpSSA } from './middlegen'
+import { optimize, orderBlocks, calculateCost, calculateCounterCost, makeInliningChoice } from './optimizer'
 import {
     comment,
     COMPILED_BY_QLX_BANNER,
@@ -104,50 +88,30 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 )
             if (op.op == Opcode.TypeGlob || op.op == Opcode.TypeLoc) {
             } else if (op.op == Opcode.StGlob || op.op == Opcode.StInitGlob) {
-                code.push(
-                    `    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(
-                        op.args[1]
-                    )}`
-                )
+                code.push(`    ${fmt.assign}set ${glob}${mod}::_init::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.StLoc || op.op == Opcode.StInitLoc) {
-                code.push(
-                    `    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(
-                        op.args[1]
-                    )}`
-                )
+                code.push(`    ${fmt.assign}set ${glob}${mod}::${fn}::${op.args[0]}${nostyle} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.Move) {
-                code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`
-                )
+                code.push(`    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == Opcode.BindArgument) {
                 code.push(
                     `    ${fmt.assign}set${nostyle} ${glob}${mod}::${fn}::${op.args[0]} ${nostyle}${ri}arg-${op.args[1]}.${mod}::${fn}${nostyle}`
                 )
             } else if (op.op == Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
-                    code.push(
-                        `    ${fmt.assign}set ${ri}arg-${i}.${op.args[1]}${nostyle} ${immref(
-                            op.args[i + 2]
-                        )}`
-                    )
+                    code.push(`    ${fmt.assign}set ${ri}arg-${i}.${op.args[1]}${nostyle} ${immref(op.args[i + 2])}`)
                 }
                 code.push(
                     `    ${fmt.assign}op ${selector}add ${ri}lr.${op.args[1]} ${selector}@counter ${ri}1${nostyle}`
                 )
-                code.push(
-                    `    ${fmt.assign}jump ${label}fn.${op.args[1]} ${selector}always${nostyle}`
-                )
+                code.push(`    ${fmt.assign}jump ${label}fn.${op.args[1]} ${selector}always${nostyle}`)
                 if (op.args[0]) {
-                    code.push(
-                        `    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv._main::${op.args[1]}`
-                    )
+                    code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${ri}rv._main::${op.args[1]}`)
                 }
                 functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == Opcode.LdGlob) {
                 code.push(
-                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_main::_init::${
-                        op.args[1]
-                    }${nostyle}`
+                    `    ${fmt.assign}set${nostyle} ${immref(op.args[0])} ${label}_main::_init::${op.args[1]}${nostyle}`
                 )
             } else if (op.op == Opcode.LdLoc) {
                 code.push(
@@ -157,55 +121,51 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 )
             } else if (op.op == Opcode.BinOp) {
                 code.push(
-                    `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(
-                        op.args[0]
-                    )} ${immref(op.args[2])} ${immref(op.args[3])}`
+                    `    ${fmt.assign}op ${selector}${op.args[1]}${nostyle} ${immref(op.args[0])} ${immref(
+                        op.args[2]
+                    )} ${immref(op.args[3])}`
                 )
             } else if (op.op == Opcode.TargetOp) {
                 const ops = {
                     'print.direct': () => `${fmt.rawio}print ${ri}${op.args[1]}${nostyle}`,
                     'print.ref': () => `${fmt.rawio}print${nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${fmt.rawio}printflush${nostyle} ${immref(op.args[1])}`,
-                    _lookupblox: () =>
-                        `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                    _lookupblox: () => `${fmt.assign}set${nostyle} ${immref(op.args[1])} ${op.args[2]}`,
                     read: () =>
-                        `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(
-                            op.args[2]
-                        )} ${immref(op.args[3])}`,
+                        `${fmt.assign}read${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                     write: () =>
-                        `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(
-                            op.args[2]
-                        )} ${immref(op.args[3])}`,
+                        `${fmt.assign}write${nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(
+                            op.args[3]
+                        )}`,
                 }
                 if (!(<string>op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[<keyof typeof ops>op.args[0]]()}`)
             } else if (op.op == Opcode.Return) {
-                code.push(
-                    `    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`
-                )
+                code.push(`    ${fmt.cflow}set ${ri}rv.${mod}::${fn}${nostyle} ${immref(op.args[0])}`)
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.ReturnVoid) {
                 code.push(`    ${fmt.cflow}set ${selector}@counter ${ri}lr.${mod}::${fn}${nostyle}`)
             } else if (op.op == Opcode.End) {
-                if (
-                    options.noEnd &&
-                    blocks[blocks.length - 1] == blk &&
-                    blk.cond == JumpCond.Abort
-                ) {
+                if (options.noEnd && blocks[blocks.length - 1] == blk && blk.cond == JumpCond.Abort) {
                     continue
                 }
                 code.push(`    ${fmt.cflow}end${nostyle}`)
             } else if (op.op == Opcode.Function) {
                 // `Function` is a typechecker hint.
+            } else if (op.op == Opcode.AsmSetSlot) {
+                code.push(`    ${fmt.assign}set ${op.args[0]} ${immref(op.args[1])}`)
+            } else if (op.op == Opcode.Asm) {
+                code.push(
+                    ...(<string[]>op.args).map(e => (e.endsWith(':') ? e : '    ' + e)),
+                )
+            } else if (op.op == Opcode.AsmGetSlot) {
+                code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${op.args[1]}`)
             } else {
                 console.log(`error: unknown op:`, Opcode[op.op], ...op.args)
                 process.exit(2)
             }
             for (let i = watermark; i < code.length; i++) {
-                programLongestOpcode = Math.max(
-                    code[i].replaceAll(/\x00./g, '').length + 4,
-                    programLongestOpcode
-                )
+                programLongestOpcode = Math.max(code[i].replaceAll(/\x00./g, '').length + 7, programLongestOpcode)
                 code[i] += ' #@@ ' + op.pos + '  \t'
                 if (op.meta) code[i] += '| ' + nostyle + highlight(op.meta.line, op.meta.range)
             }
@@ -213,18 +173,10 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
         }
         if (options.interleaveSsa)
             code.push(
-                `    # ${JumpCond[blk.cond]} ${blk.condargs
-                    .map(e => inspect(e, { breakLength: Infinity }))
-                    .join(' ')}`
+                `    # ${JumpCond[blk.cond]} ${blk.condargs.map(e => inspect(e, { breakLength: Infinity })).join(' ')}`
             )
-        const hasCons =
-            options.eliminateBranches &&
-            blk.targets.length > 0 &&
-            afterBlock.get(blk.targets[0]) == blk
-        const hasAlt =
-            options.eliminateBranches &&
-            blk.targets.length > 1 &&
-            afterBlock.get(blk.targets[1]) == blk
+        const hasCons = options.eliminateBranches && blk.targets.length > 0 && afterBlock.get(blk.targets[0]) == blk
+        const hasAlt = options.eliminateBranches && blk.targets.length > 1 && afterBlock.get(blk.targets[1]) == blk
         if (blk.cond == JumpCond.Always) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
@@ -244,9 +196,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${
-                        fmt.cflow
-                    }jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(
+                    `    ${fmt.cflow}jump ${label}${target} ${selector}notEqual${nostyle} 0 ${immref(
                         blk.condargs[0]
                     )} ${comment}# consequent`
                 )
@@ -281,9 +231,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
             }
         } else if (blk.cond == JumpCond.Abort) {
             if (!options.noSafeAbort)
-                code.push(
-                    `    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`
-                )
+                code.push(`    ${fmt.assign}op ${selector}sub @counter @counter ${ri}1 ${comment}# abort`)
             else code.push(`    ${comment}# abort!`)
         } else {
             code.push(`    ${comment}# ${fmt.rawio}TODO${comment}: branch: ${JumpCond[blk.cond]}`)
@@ -293,13 +241,8 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
         const tbl = code[i].split(' #@@ ')
         if (tbl.length == 1) continue
         const lol = tbl.slice(0, -1).join(' #@@ ')
-        const lolcount = lol.match(/\x00./g).length
-        code[i] =
-            lol.padEnd(programLongestOpcode + lolcount * 2) +
-            comment +
-            '# ' +
-            tbl.slice(-1)[0] +
-            nostyle
+        const lolcount = (lol.match(/\x00./g) ?? []).length
+        code[i] = lol.padEnd(programLongestOpcode + lolcount * 2) + comment + '# ' + tbl.slice(-1)[0] + nostyle
     }
     if (options.stripComments) {
         code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
@@ -310,10 +253,7 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
 
     writeCode(finalizeColors(code))
 }
-export function generateCode(
-    units: [SSAUnit, Map<string, SSAUnit>],
-    writeCode: (s: string) => void
-) {
+export function generateCode(units: [SSAUnit, Map<string, SSAUnit>], writeCode: (s: string) => void) {
     let buf = [COMPILED_BY_QLX_BANNER('mlog')]
 
     for (const [nm] of units[1]) refcounts.set(`_main::${nm}`, 0)

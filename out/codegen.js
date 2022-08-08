@@ -1,21 +1,5 @@
-"use strict";Object.defineProperty(exports, "__esModule", {value: true});var _util = require('util');
-
-
-
-
-
-
-
-
-
-
+"use strict";Object.defineProperty(exports, "__esModule", {value: true}); function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }var _util = require('util');
 var _middlegen = require('./middlegen');
-
-
-
-
-
-
 var _optimizer = require('./optimizer');
 
 
@@ -104,50 +88,30 @@ function generateUnit(mod, fn, unit, writeCode) {
                 )
             if (op.op == _middlegen.Opcode.TypeGlob || op.op == _middlegen.Opcode.TypeLoc) {
             } else if (op.op == _middlegen.Opcode.StGlob || op.op == _middlegen.Opcode.StInitGlob) {
-                code.push(
-                    `    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::_init::${op.args[0]}${_highlight.nostyle} ${immref(
-                        op.args[1]
-                    )}`
-                )
+                code.push(`    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::_init::${op.args[0]}${_highlight.nostyle} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.StLoc || op.op == _middlegen.Opcode.StInitLoc) {
-                code.push(
-                    `    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::${fn}::${op.args[0]}${_highlight.nostyle} ${immref(
-                        op.args[1]
-                    )}`
-                )
+                code.push(`    ${_highlight.fmt.assign}set ${_highlight.glob}${mod}::${fn}::${op.args[0]}${_highlight.nostyle} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.Move) {
-                code.push(
-                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`
-                )
+                code.push(`    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${immref(op.args[1])}`)
             } else if (op.op == _middlegen.Opcode.BindArgument) {
                 code.push(
                     `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${_highlight.glob}${mod}::${fn}::${op.args[0]} ${_highlight.nostyle}${_highlight.ri}arg-${op.args[1]}.${mod}::${fn}${_highlight.nostyle}`
                 )
             } else if (op.op == _middlegen.Opcode.Call) {
                 for (let i = 0; i < op.args.length - 2; i++) {
-                    code.push(
-                        `    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${op.args[1]}${_highlight.nostyle} ${immref(
-                            op.args[i + 2]
-                        )}`
-                    )
+                    code.push(`    ${_highlight.fmt.assign}set ${_highlight.ri}arg-${i}.${op.args[1]}${_highlight.nostyle} ${immref(op.args[i + 2])}`)
                 }
                 code.push(
                     `    ${_highlight.fmt.assign}op ${_highlight.selector}add ${_highlight.ri}lr.${op.args[1]} ${_highlight.selector}@counter ${_highlight.ri}1${_highlight.nostyle}`
                 )
-                code.push(
-                    `    ${_highlight.fmt.assign}jump ${_highlight.label}fn.${op.args[1]} ${_highlight.selector}always${_highlight.nostyle}`
-                )
+                code.push(`    ${_highlight.fmt.assign}jump ${_highlight.label}fn.${op.args[1]} ${_highlight.selector}always${_highlight.nostyle}`)
                 if (op.args[0]) {
-                    code.push(
-                        `    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv._main::${op.args[1]}`
-                    )
+                    code.push(`    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${_highlight.ri}rv._main::${op.args[1]}`)
                 }
                 functionCallReferenceSet.add(`${op.args[1]}`)
             } else if (op.op == _middlegen.Opcode.LdGlob) {
                 code.push(
-                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}_main::_init::${
-                        op.args[1]
-                    }${_highlight.nostyle}`
+                    `    ${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[0])} ${_highlight.label}_main::_init::${op.args[1]}${_highlight.nostyle}`
                 )
             } else if (op.op == _middlegen.Opcode.LdLoc) {
                 code.push(
@@ -157,55 +121,51 @@ function generateUnit(mod, fn, unit, writeCode) {
                 )
             } else if (op.op == _middlegen.Opcode.BinOp) {
                 code.push(
-                    `    ${_highlight.fmt.assign}op ${_highlight.selector}${op.args[1]}${_highlight.nostyle} ${immref(
-                        op.args[0]
-                    )} ${immref(op.args[2])} ${immref(op.args[3])}`
+                    `    ${_highlight.fmt.assign}op ${_highlight.selector}${op.args[1]}${_highlight.nostyle} ${immref(op.args[0])} ${immref(
+                        op.args[2]
+                    )} ${immref(op.args[3])}`
                 )
             } else if (op.op == _middlegen.Opcode.TargetOp) {
                 const ops = {
                     'print.direct': () => `${_highlight.fmt.rawio}print ${_highlight.ri}${op.args[1]}${_highlight.nostyle}`,
                     'print.ref': () => `${_highlight.fmt.rawio}print${_highlight.nostyle} ${immref(op.args[1])}`,
                     'print.flush': () => `${_highlight.fmt.rawio}printflush${_highlight.nostyle} ${immref(op.args[1])}`,
-                    _lookupblox: () =>
-                        `${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[1])} ${op.args[2]}`,
+                    _lookupblox: () => `${_highlight.fmt.assign}set${_highlight.nostyle} ${immref(op.args[1])} ${op.args[2]}`,
                     read: () =>
-                        `${_highlight.fmt.assign}read${_highlight.nostyle} ${immref(op.args[1])} ${immref(
-                            op.args[2]
-                        )} ${immref(op.args[3])}`,
+                        `${_highlight.fmt.assign}read${_highlight.nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(op.args[3])}`,
                     write: () =>
-                        `${_highlight.fmt.assign}write${_highlight.nostyle} ${immref(op.args[1])} ${immref(
-                            op.args[2]
-                        )} ${immref(op.args[3])}`,
+                        `${_highlight.fmt.assign}write${_highlight.nostyle} ${immref(op.args[1])} ${immref(op.args[2])} ${immref(
+                            op.args[3]
+                        )}`,
                 }
                 if (!(op.args[0] in ops)) console.log('op:', op.args[0])
                 code.push(`    ${ops[op.args[0]]()}`)
             } else if (op.op == _middlegen.Opcode.Return) {
-                code.push(
-                    `    ${_highlight.fmt.cflow}set ${_highlight.ri}rv.${mod}::${fn}${_highlight.nostyle} ${immref(op.args[0])}`
-                )
+                code.push(`    ${_highlight.fmt.cflow}set ${_highlight.ri}rv.${mod}::${fn}${_highlight.nostyle} ${immref(op.args[0])}`)
                 code.push(`    ${_highlight.fmt.cflow}set ${_highlight.selector}@counter ${_highlight.ri}lr.${mod}::${fn}${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.ReturnVoid) {
                 code.push(`    ${_highlight.fmt.cflow}set ${_highlight.selector}@counter ${_highlight.ri}lr.${mod}::${fn}${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.End) {
-                if (
-                    _middlegen.options.noEnd &&
-                    blocks[blocks.length - 1] == blk &&
-                    blk.cond == _middlegen.JumpCond.Abort
-                ) {
+                if (_middlegen.options.noEnd && blocks[blocks.length - 1] == blk && blk.cond == _middlegen.JumpCond.Abort) {
                     continue
                 }
                 code.push(`    ${_highlight.fmt.cflow}end${_highlight.nostyle}`)
             } else if (op.op == _middlegen.Opcode.Function) {
                 // `Function` is a typechecker hint.
+            } else if (op.op == _middlegen.Opcode.AsmSetSlot) {
+                code.push(`    ${_highlight.fmt.assign}set ${op.args[0]} ${immref(op.args[1])}`)
+            } else if (op.op == _middlegen.Opcode.Asm) {
+                code.push(
+                    ...(op.args).map(e => (e.endsWith(':') ? e : '    ' + e)),
+                )
+            } else if (op.op == _middlegen.Opcode.AsmGetSlot) {
+                code.push(`    ${_highlight.fmt.assign}set ${immref(op.args[0])} ${op.args[1]}`)
             } else {
                 console.log(`error: unknown op:`, _middlegen.Opcode[op.op], ...op.args)
                 process.exit(2)
             }
             for (let i = watermark; i < code.length; i++) {
-                programLongestOpcode = Math.max(
-                    code[i].replaceAll(/\x00./g, '').length + 4,
-                    programLongestOpcode
-                )
+                programLongestOpcode = Math.max(code[i].replaceAll(/\x00./g, '').length + 7, programLongestOpcode)
                 code[i] += ' #@@ ' + op.pos + '  \t'
                 if (op.meta) code[i] += '| ' + _highlight.nostyle + _highlight.highlight.call(void 0, op.meta.line, op.meta.range)
             }
@@ -213,18 +173,10 @@ function generateUnit(mod, fn, unit, writeCode) {
         }
         if (_middlegen.options.interleaveSsa)
             code.push(
-                `    # ${_middlegen.JumpCond[blk.cond]} ${blk.condargs
-                    .map(e => _util.inspect.call(void 0, e, { breakLength: Infinity }))
-                    .join(' ')}`
+                `    # ${_middlegen.JumpCond[blk.cond]} ${blk.condargs.map(e => _util.inspect.call(void 0, e, { breakLength: Infinity })).join(' ')}`
             )
-        const hasCons =
-            _middlegen.options.eliminateBranches &&
-            blk.targets.length > 0 &&
-            afterBlock.get(blk.targets[0]) == blk
-        const hasAlt =
-            _middlegen.options.eliminateBranches &&
-            blk.targets.length > 1 &&
-            afterBlock.get(blk.targets[1]) == blk
+        const hasCons = _middlegen.options.eliminateBranches && blk.targets.length > 0 && afterBlock.get(blk.targets[0]) == blk
+        const hasAlt = _middlegen.options.eliminateBranches && blk.targets.length > 1 && afterBlock.get(blk.targets[1]) == blk
         if (blk.cond == _middlegen.JumpCond.Always) {
             if (!hasCons) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
@@ -244,9 +196,7 @@ function generateUnit(mod, fn, unit, writeCode) {
                 const target = `${mod}::${fn}.${blookup(blk.targets[0])}`
                 usedlabels.add(target)
                 code.push(
-                    `    ${
-                        _highlight.fmt.cflow
-                    }jump ${_highlight.label}${target} ${_highlight.selector}notEqual${_highlight.nostyle} 0 ${immref(
+                    `    ${_highlight.fmt.cflow}jump ${_highlight.label}${target} ${_highlight.selector}notEqual${_highlight.nostyle} 0 ${immref(
                         blk.condargs[0]
                     )} ${_highlight.comment}# consequent`
                 )
@@ -281,9 +231,7 @@ function generateUnit(mod, fn, unit, writeCode) {
             }
         } else if (blk.cond == _middlegen.JumpCond.Abort) {
             if (!_middlegen.options.noSafeAbort)
-                code.push(
-                    `    ${_highlight.fmt.assign}op ${_highlight.selector}sub @counter @counter ${_highlight.ri}1 ${_highlight.comment}# abort`
-                )
+                code.push(`    ${_highlight.fmt.assign}op ${_highlight.selector}sub @counter @counter ${_highlight.ri}1 ${_highlight.comment}# abort`)
             else code.push(`    ${_highlight.comment}# abort!`)
         } else {
             code.push(`    ${_highlight.comment}# ${_highlight.fmt.rawio}TODO${_highlight.comment}: branch: ${_middlegen.JumpCond[blk.cond]}`)
@@ -293,13 +241,8 @@ function generateUnit(mod, fn, unit, writeCode) {
         const tbl = code[i].split(' #@@ ')
         if (tbl.length == 1) continue
         const lol = tbl.slice(0, -1).join(' #@@ ')
-        const lolcount = lol.match(/\x00./g).length
-        code[i] =
-            lol.padEnd(programLongestOpcode + lolcount * 2) +
-            _highlight.comment +
-            '# ' +
-            tbl.slice(-1)[0] +
-            _highlight.nostyle
+        const lolcount = (_nullishCoalesce(lol.match(/\x00./g), () => ( []))).length
+        code[i] = lol.padEnd(programLongestOpcode + lolcount * 2) + _highlight.comment + '# ' + tbl.slice(-1)[0] + _highlight.nostyle
     }
     if (_middlegen.options.stripComments) {
         code = code.map(line => line.split('#')[0]).filter(e => e.replaceAll(/\x00./g, '').trim())
@@ -310,10 +253,7 @@ function generateUnit(mod, fn, unit, writeCode) {
 
     writeCode(_highlight.finalizeColors.call(void 0, code))
 }
- function generateCode(
-    units,
-    writeCode
-) {
+ function generateCode(units, writeCode) {
     let buf = [_highlight.COMPILED_BY_QLX_BANNER.call(void 0, 'mlog')]
 
     for (const [nm] of units[1]) refcounts.set(`_main::${nm}`, 0)

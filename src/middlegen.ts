@@ -1,15 +1,31 @@
 // vim: ts=4 sts=4 sw=4 et list
 import assert from 'assert'
-import { readFileSync } from 'fs'
-import { ast, parseprogram } from './parseqlx'
-import { dumpAstNode } from './dumpast'
-function isast(t: ast | string): asserts t is ast {}
-function isstr(t: ast | string): asserts t is string {}
-function theast(t: ast | string): ast {
+import { ast } from './parseqlx'
+import blocks from './data/mindustryblocks.json'
+import { comment, fmt, glob, label, nostyle, opc, ri, selector } from './target/highlight'
+
+function isast(t: ast | string | (ast | string)[]): asserts t is ast {}
+function isarr(t: ast | string | (ast | string)[]): asserts t is (ast | string)[] {}
+function isastarr(t: ast | string | (ast | string)[]): asserts t is ast[] {}
+function isstrarr(t: ast | string | (ast | string)[]): asserts t is string[] {}
+function isstr(t: ast | string | (ast | string)[]): asserts t is string {}
+function thearr(t: ast | string | (ast | string)[]): (ast | string)[] {
+    isarr(t)
+    return t
+}
+function theastarr(t: ast | string | (ast | string)[]): ast[] {
+    isastarr(t)
+    return t
+}
+function thestrarr(t: ast | string | (ast | string)[]): string[] {
+    isstrarr(t)
+    return t
+}
+function theast(t: ast | string | (ast | string)[]): ast {
     isast(t)
     return t
 }
-function thestr(t: ast | string): string {
+function thestr(t: ast | string | (ast | string)[]): string {
     isstr(t)
     return t
 }
@@ -35,6 +51,11 @@ export enum Opcode {
     NewObject,
     GetProp,
     SetProp,
+
+    AsmPinArgument,
+    AsmSetSlot,
+    AsmGetSlot,
+    Asm,
 }
 export enum JumpCond {
     Always,
@@ -56,6 +77,7 @@ export enum PrimitiveType {
     Null,
 }
 import { Options } from './options'
+import { dumpAstNode } from './dumpast'
 export const options: Options = <Options>{}
 export interface CompoundType {
     name: string
@@ -104,6 +126,7 @@ interface SSAGenCtx {
     blocks: Set<SSABlock>
     glob: Set<string>
     names: Set<string>
+    args: string[]
 }
 export const getreg = (
     i => () =>
@@ -141,6 +164,7 @@ function expand(ctx: SSAGenCtx, name: string) {
     if (name.startsWith('__')) {
         return '__intrin::' + name
     }
+    if (name == 'print') return '__intrin::__print_vs'
     console.log('uhh, unsure about name', name)
 }
 function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = false): OpArg {
@@ -172,11 +196,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
             meta,
             pos: node.pos,
             op: Opcode.Call,
-            args: [
-                isCallStatement ? null : { reg },
-                tgd,
-                ...callargs.map(e => doGenerateExpr(theast(e), ctx)),
-            ],
+            args: [isCallStatement ? null : { reg }, tgd, ...callargs.map(e => doGenerateExpr(theast(e), ctx))],
         })
         ctx.currentBlock = fwd2
         ctx.blocks.add(fwd)
@@ -254,6 +274,7 @@ function doGenerateType(node: ast): { type: Type } {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     if (node.type == 'voidty') return { type: PrimitiveType.Void }
     if (node.type == 'namedty') return { type: name2type.get(thestr(node.children[0])) }
+    if (node.type == 'idtype') return { type: name2type.get(thestr(node.children[0])) }
     assert(false, 'TODO: type ' + node.type)
 }
 function ssablk(): SSABlock {
@@ -266,6 +287,161 @@ function ssablk(): SSABlock {
 }
 const functionGenerationQueue = new Set<[string, ast]>()
 const argumentBindingLookback = new WeakMap<SSABlock, SSABlock>()
+
+const cgprefix = (
+    i => () =>
+        `asmcg:${i++}`
+)(0)
+const blockre = new RegExp('^(' + blocks.join('|') + ')[1-9][0-9]*$')
+function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SSAOp['meta']) {
+    let p = options.frontend_qlxasm ? '' : cgprefix()+':',
+        ps = p.replace('asmcg', 'asmslot')
+    function idmap(x: string): string {
+        if (blockre.test(x)) return x
+        return p + x
+    }
+    const slot = (
+        i => () =>
+            `${ps}:${i++}`
+    )(0)
+
+    const asmcode: [string, Pick<SSAOp, 'meta' | 'pos'>][] = []
+    const postsync: SSAOp[] = []
+    function asmop(op: ast): string {
+        if (op.type == 'asm.in') {
+            if (theast(op.children[0]).type == 'varnode') {
+                const nam = thestr(theast(op.children[0]).children[0])
+                if (c.glob.has(nam)) {
+                    return ri + c.moduleName + '::_init::' + nam
+                }
+                if (c.args.includes(nam)) {
+                    return `${ri}arg-${c.args.indexOf(nam)}.${c.moduleName}::${c.functionName}`
+                }
+            }
+            const arg = doGenerateExpr(theast(op.children[0]), c)
+            const s = slot()
+            c.currentBlock.ops.push({
+                op: Opcode.AsmSetSlot,
+                args: [s, arg],
+                meta: { line: op.codeline, range: op.range },
+                pos: op.pos,
+            })
+            return `${ri}${s}`
+        }
+        if (op.type == 'asm.id') {
+            return label + idmap(thestr(op.children[0]))
+        }
+        if (op.type == 'asm.num') {
+            return `${ri}${op.children[0]}`
+        }
+
+        console.log('TODO asmop:')
+        dumpAstNode(op)
+        process.exit(1)
+    }
+    function asmout(op: ast): string {
+        if (op.type == 'asm.out') {
+            op = theast(op.children[0])
+        }
+        if (op.type == 'varnode') {
+            const reg = getreg()
+            const s = slot()
+            postsync.push({
+                op: Opcode.AsmGetSlot,
+                args: [
+                    { reg },
+                    s,
+                    thestr(op.children[0]),
+                    c.glob.has(thestr(op.children[0])) ? Opcode.LdGlob : Opcode.LdLoc,
+                ],
+                meta: { line: op.codeline, range: op.range },
+                pos: op.pos,
+            })
+            postsync.push({
+                op: c.glob.has(thestr(op.children[0])) ? Opcode.StGlob : Opcode.StLoc,
+                args: [thestr(op.children[0]), { reg }],
+                meta: { line: op.codeline, range: op.range },
+                pos: op.pos,
+            })
+            return `${ri}${s}`
+        }
+
+        console.log('TODO asmout:')
+        dumpAstNode(op)
+        process.exit(1)
+    }
+    const asmops = {
+        'asm.op.add': 'add',
+    }
+    for (const n of nodes) {
+        if (n.type == 'asm.set') {
+            asmcode.push([
+                `${opc}set ${ri}${idmap(thestr(n.children[0]))} ${asmop(theast(n.children[1]))}`,
+                {
+                    meta: { line: n.codeline, range: n.range },
+                    pos: n.pos,
+                },
+            ])
+        } else if (n.type == 'asm.print') {
+            asmcode.push([
+                `${opc}print ${asmop(theast(n.children[0]))}`,
+                {
+                    meta: { line: n.codeline, range: n.range },
+                    pos: n.pos,
+                },
+            ])
+        } else if (n.type == 'asm.setout') {
+            asmcode.push([
+                `${opc}set ${asmout(theast(n.children[0]))} ${asmop(theast(n.children[1]))}`,
+                {
+                    meta: { line: n.codeline, range: n.range },
+                    pos: n.pos,
+                },
+            ])
+        } else if (n.type == 'asm.op.sym' && asmops[theast(n.children[2]).type]) {
+            asmcode.push([
+                `${opc}op ${selector}${asmops[theast(n.children[2]).type]} ${ri}${idmap(thestr(n.children[0]))} ${asmop(
+                    theast(n.children[1])
+                )} ${asmop(theast(n.children[3]))}`,
+                {
+                    meta: { line: n.codeline, range: n.range },
+                    pos: n.pos,
+                },
+            ])
+        } else {
+            console.log('TODO node:')
+            dumpAstNode(n)
+            process.exit(1)
+        }
+    }
+    if (!options.frontend_qlxasm) {
+        c.currentBlock.ops.push({
+            op: Opcode.Asm,
+            args: [`${comment}# begin inline asm`],
+            pos,
+            meta,
+        })
+    }
+    c.currentBlock.ops.push(
+        ...asmcode.map(e => ({
+            op: Opcode.Asm,
+            args: [e[0]],
+            pos: e[1].pos,
+            meta: e[1].meta,
+        })),
+    )
+    if (!options.frontend_qlxasm) {
+        c.currentBlock.ops.push({
+            op: Opcode.Asm,
+            args: [`${comment}# end inline asm`],
+            pos: end.pos,
+            meta: { line: end.codeline, range: end.range },
+        })
+    }
+    c.currentBlock.ops.push(
+        ...postsync
+    )
+}
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     function pushOp(op: SSAOp) {
         ctx.currentBlock.ops.push(op)
@@ -277,8 +453,18 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         }
         return
     }
+    if (node.type == 'root') {
+        for (const c of theastarr(node.children[0])) {
+            doGenerateSSA(c, ctx)
+        }
+        return
+    }
     if (node.type == 'blocknode') {
         for (const c of node.children) doGenerateSSA(theast(c), ctx)
+        return
+    }
+    if (node.type == 'block2') {
+        for (const c of theastarr(node.children[0])) doGenerateSSA(c, ctx)
         return
     }
     if (node.type == 'dotset') {
@@ -295,12 +481,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
             meta,
             pos: node.pos,
             op: Opcode.SetProp,
-            args: [
-                { reg: reg2 },
-                { reg },
-                thestr(node.children[1]),
-                doGenerateExpr(theast(node.children[2]), ctx),
-            ],
+            args: [{ reg: reg2 }, { reg }, thestr(node.children[1]), doGenerateExpr(theast(node.children[2]), ctx)],
         })
         pushOp({
             meta,
@@ -335,10 +516,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         return
     }
     if (node.type == 'if') {
-        if (
-            theast(node.children[2]).type == 'blocknode' &&
-            theast(node.children[2]).children.length == 0
-        ) {
+        if (theast(node.children[2]).type == 'blocknode' && theast(node.children[2]).children.length == 0) {
             // if .. do-end
             const cond = doGenerateExpr(theast(node.children[0]), ctx)
             const body: SSABlock = ssablk()
@@ -468,6 +646,20 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         functionGenerationQueue.add([ctx.moduleName, node])
         return
     }
+    if (node.type == 'fn2') {
+        const name = thestr(node.children[0])
+        const args: ast[] = theastarr(node.children[1])
+        const ret = doGenerateType(theast(node.children[2]))
+        ctx.names.add(name)
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.Function,
+            args: [ctx.moduleName + '::' + name, ret, ...args.map(e => doGenerateType(theast(e.children[1])))],
+        })
+        functionGenerationQueue.add([ctx.moduleName, node])
+        return
+    }
     if (node.type == 'callnode') {
         doGenerateExpr(node, ctx, node.type == 'callnode')
         return
@@ -489,6 +681,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         const idx = +thestr(idx_)
         const [nm_, typ] = theast(c0).children
         const nm = thestr(nm_)
+        ctx.args.push(nm)
         if (argumentBindingLookback.has(ctx.currentBlock)) {
             argumentBindingLookback.get(ctx.currentBlock).ops.push({
                 meta,
@@ -558,10 +751,7 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     if (node.type == 'struct') {
         const items = new Map<string, Type>()
         for (const c of node.children.slice(1))
-            items.set(
-                thestr(theast(c).children[0]),
-                doGenerateType(theast(theast(c).children[1])).type
-            )
+            items.set(thestr(theast(c).children[0]), doGenerateType(theast(theast(c).children[1])).type)
         const ct: CompoundType = {
             name: 'struct _main:' + thestr(node.children[0]),
             members: items,
@@ -576,6 +766,14 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         ctx.moduleName = thestr(node.children[0])
         doGenerateSSA(theast(node.children[1]), ctx)
         ctx.names = nam
+        return
+    }
+    if (node.type == 'drop') {
+        doGenerateExpr(theast(node.children[0]), ctx)
+        return
+    }
+    if (node.type == 'asm') {
+        cgInlineAsm(ctx, theastarr(node.children[0]), theast(node.children[1]), node.pos, meta)
         return
     }
 
@@ -614,11 +812,7 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
         if (b && !b.includes(block)) continue
         console.log(`\x1b[34;1m${m.get(block)}\x1b[0m`)
         for (const op of block.ops) {
-            console.log(
-                '    \x1b[32;1m%s\x1b[0m',
-                Opcode[op.op],
-                ...op.args.map(e => dumpSSAParameter(e, op))
-            )
+            console.log('    \x1b[32;1m%s\x1b[0m', Opcode[op.op], ...op.args.map(e => dumpSSAParameter(e, op)))
         }
         console.log('  \x1b[31m%s\x1b[0m', JumpCond[block.cond], ...block.condargs)
         const labels = [[], ['target'], ['cons', 'alt']][block.targets.length]
@@ -628,7 +822,7 @@ export function dumpSSA(unit: SSAUnit, b: SSABlock[] = null) {
         }
     }
 }
-export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
+export function generateSSA(ast: ast): [SSAUnit, Map<string, SSAUnit>] {
     function generateUnit(g: boolean, f: string, body: ast) {
         const blk: SSABlock = {
             ops: [],
@@ -645,9 +839,25 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
             blocks: new Set([blk]),
             glob: new Set<string>(),
             names: new Set<string>(),
+            args: [],
         }
 
-        doGenerateSSA(body, ctx)
+        if (!g && body.type == 'fn2') {
+            let argi = 0
+            for (const arg of theastarr(body.children[1])) {
+                const meta = { line: arg.codeline, range: arg.range }
+                ctx.currentBlock.ops.push({
+                    meta,
+                    pos: arg.pos,
+                    op: Opcode.BindArgument,
+                    args: [thestr(arg.children[0]), `${argi++}`, doGenerateType(theast(arg.children[1]))],
+                })
+                ctx.args.push(thestr(arg.children[0]))
+            }
+            doGenerateSSA(theast(body.children[3]), ctx)
+        } else {
+            doGenerateSSA(body, ctx)
+        }
         if (g) {
             ctx.currentBlock.cond = JumpCond.Abort
             ctx.currentBlock.ops.push({
@@ -668,14 +878,19 @@ export function generateSSA(file: string): [SSAUnit, Map<string, SSAUnit>] {
             blocks: ctx.blocks,
         }
     }
-    const ast = parseprogram(readFileSync(file).toString())
-    if (options.dump_ast) dumpAstNode(ast)
     const root = generateUnit(true, '_main::_init', ast)
     const cu = new Map()
     for (const [mod, n] of functionGenerationQueue) {
-        const name = thestr(n.children[0])
-        const body = theast(n.children[1])
-        cu.set(mod + '::' + name, generateUnit(false, name, body))
+        if (n.type == 'fnnode') {
+            const name = thestr(n.children[0])
+            const body = theast(n.children[1])
+            cu.set(mod + '::' + name, generateUnit(false, name, body))
+        } else if (n.type == 'fn2') {
+            const name = thestr(n.children[0])
+            cu.set(mod + '::' + name, generateUnit(false, name, n))
+        } else {
+            assert(false, 'bad proc type')
+        }
         // if (theast(n.children[2]).type == 'voiddty') {
         //     cu.get(name)
         // }

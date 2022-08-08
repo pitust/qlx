@@ -295,6 +295,28 @@ function continueBlockCheck(
                     ltypes.set(out.reg, _middlegen.PrimitiveType.Float)
                 }
                 break
+            case _middlegen.Opcode.AsmSetSlot:
+            case _middlegen.Opcode.Asm:
+                break
+            case _middlegen.Opcode.AsmGetSlot:
+                const [_to, _slot, nam, kind] = op.args    
+                const out = op.args[0]
+                if (kind == _middlegen.Opcode.LdGlob) {
+                    if (!gTy.has(nam)) {
+                        console.log('No such variable: ' + nam)
+                        checked = false
+                        return
+                    }
+                    ltypes.set(out.reg, gTy.get(nam))
+                } else if (kind == _middlegen.Opcode.LdLoc) {
+                    if (!vTy.has(nam)) {
+                        console.log('No such local variable: ' + nam)
+                        checked = false
+                        return
+                    }
+                    ltypes.set(out.reg, vTy.get(nam))
+                }
+                break
             case _middlegen.Opcode.Function:
                 const target = op.args[0]
                 const argc = op.args.length - 2

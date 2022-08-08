@@ -663,6 +663,9 @@ const opcost = {
     Move: 1,
     End: 1,
     TypeGlob: 0,
+    BindArgument: 0,
+    AsmSetSlot: 1,
+    AsmGetSlot: 1,
 }
 const condcost = {
     Always: 0.5,
@@ -675,7 +678,7 @@ const condcost = {
     let cost = 0
     for (const blk of blocks) {
         for (const op of blk.ops) {
-            if (op.op == _middlegen.Opcode.Call) {
+            if (op.op == _middlegen.Opcode.Call || op.op == _middlegen.Opcode.Asm) {
                 cost += op.args.length
                 continue
             }

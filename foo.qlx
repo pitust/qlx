@@ -1,6 +1,10 @@
 
-fn func { } -> float
-    return 3
-end
+// fn func { } -> float
+//     return 3
+// end
 
-print func/0
+// print func/0
+fn func() -> float {
+    return 3;
+}
+print func();

@@ -19,6 +19,9 @@ options = {
     'gen2': 'Enable WIP gen2 code generation, in preparation for machine code',
     'prg': 'Enable experimental less-optimizing prg codegen (pretty reasonable codegen)',
 
+    'frontend=modern': '[!frontend=qlxasm] Use the modern QLX frontend',
+    'frontend=qlxasm': '[!frontend=modern] Use QLX as a fancy macro assembler',
+
     'dump=ast': 'Dump AST',
     'dump=prg-dfg': '[prg] Dump the PRG data-flow graph',
     'dump=prg-dfg-expandvars': '[dump=prg-dfg] Expand variables in PRG data-flow graph dumps',
@@ -102,17 +105,27 @@ for opt in options.keys():
     paddng = " " * (4 + longest_name + 2) + "   "
     helplines = options[opt].splitlines()
     needs = []
+    conflicts = []
     tsiface.append(f'    {mapname(opt)}: boolean')
     while helplines[0][0] == '[':
         tag = helplines[0][1:].split('] ')[0]
         helplines[0] = helplines[0][3 + len(tag):]
-        needs.append('-f' + tag)
-        checkcode.append(f'if (options.{mapname(opt)} && !options.{mapname(tag)}) _printHelpMessage();')
+        if tag[0] == '!':
+            conflicts.append('-f' + tag[1:])
+            checkcode.append(f'if (options.{mapname(opt)} && options.{mapname(tag[1:])}) _printHelpMessage();')
+        else:
+            needs.append('-f' + tag)
+            checkcode.append(f'if (options.{mapname(opt)} && !options.{mapname(tag)}) _printHelpMessage();')
     if len(needs) != 0:
         if len(needs) == 1:
             helplines.append(f'\\x1b[1mNeeds\\x1b[0m {needs[0]}')
         else:
             helplines.append(f'\\x1b[1mNeeds\\x1b[0m {", ".join(needs[:-1])} and {needs[-1]}')
+    if len(conflicts) != 0:
+        if len(conflicts) == 1:
+            helplines.append(f'\\x1b[1mConflicts with\\x1b[0m {conflicts[0]}')
+        else:
+            helplines.append(f'\\x1b[1mConflicts with\\x1b[0m {", ".join(conflicts[:-1])} and {conflicts[-1]}')
 
     helpmsg.append("    -f" + opt + " " * (longest_name - len(opt)) + " - " + helplines[0])
     for i in range(1, len(helplines)):
