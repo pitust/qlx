@@ -1,11 +1,14 @@
-import { dumpAstNode } from './dumpast'
 import { options } from './middlegen'
+import blocks from './data/mindustryblocks.json'
 
+const referenceRegex = new RegExp('^@(' + blocks.join('|') + ')[1-9][0-9]*\\b')
 enum TokenType {
     // basics
     STRING,
     NUMBER,
     IDENTIFIER,
+    HANDLEREF,
+    ATOM,
 
     // keywords
     FN,
@@ -20,6 +23,7 @@ enum TokenType {
     DEFAULT,
     STRUCT,
     ASM,
+    NULLHANDLE,
 
     // operators
     EQUAL, // ==
@@ -114,6 +118,8 @@ function lex(file: string, s: string): Token[] {
         [/^([1-9][0-9]*|0)\b/, match => [TokenType.NUMBER as TokenType, (+match).toString()]],
         [/^[a-zA-Z_$][a-zA-Z_$0-9]*\b/, match => [TokenType.IDENTIFIER, match]],
         [/^"([^"\\]|\\"|\\n)+"/, match => [TokenType.STRING, JSON.parse(match)]],
+        [referenceRegex, match => [TokenType.HANDLEREF, match.slice(1)]],
+        [/^:[a-zA-Z_$][a-zA-Z_$0-9]*\b/, match => [TokenType.ATOM, match]],
     ])
 
     const KEYWORDS = {
@@ -132,6 +138,7 @@ function lex(file: string, s: string): Token[] {
         handle: TokenType.HANDLE,
         void: TokenType.VOID,
         asm: TokenType.ASM,
+        null_handle: TokenType.NULLHANDLE
     }
 
     const lines = s.split('\n')
@@ -177,6 +184,7 @@ function lex(file: string, s: string): Token[] {
             continue scanning
         }
 
+        console.log(s.split('\n')[0])
         throw new Error(`at ${file}:${line}:${col}: bad char ${s[0]}`)
     }
 
@@ -351,6 +359,7 @@ asmop.register(
     oneof(
         Node('asm.id', () => TokenType.IDENTIFIER),
         Node('asm.num', () => TokenType.NUMBER),
+        Node('asm.handle', () => TokenType.HANDLEREF),
         asmioop
     )
 )
@@ -795,14 +804,19 @@ stmt.register(
         Node('block2', [TokenType.OPEN_CURLY], () => repeat(true, stmt), [TokenType.CLOSE_CURLY]),
         Node('drop', () => expr, [TokenType.SEMI]),
         Node(
-            'vardef',
+            'typedlet2',
             [TokenType.LET],
             () => TokenType.IDENTIFIER,
-            () =>
-                oneof(
-                    typ,
-                    map({ pos: pos() }, x => new ast(x.pos, 'idtype', ['_']))
-                ),
+            [TokenType.COLON],
+            () => typ,
+            [TokenType.ASSIGN],
+            () => expr,
+            [TokenType.SEMI]
+        ),
+        Node(
+            'varlet2',
+            [TokenType.LET],
+            () => TokenType.IDENTIFIER,
             [TokenType.ASSIGN],
             () => expr,
             [TokenType.SEMI]
@@ -814,9 +828,12 @@ stmt.register(
 )
 {
     let parent_expr: ParseItem<ast> = oneof(
-        // number, string
+        // number, string, atoms, handles
         Node('number', () => TokenType.NUMBER),
         Node('strlit', () => TokenType.STRING),
+        Node('atom', () => TokenType.ATOM),
+        Node('handle', () => TokenType.HANDLEREF),
+        Node('nullhandle', [TokenType.NULLHANDLE]),
         // function calls
         Node(
             'callnode',

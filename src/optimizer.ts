@@ -1,3 +1,4 @@
+import assert from 'assert'
 import { deserialize, serialize } from 'v8'
 import {
     options,
@@ -224,19 +225,22 @@ function bindLoads(blocks: SSABlock[]) {
         const next = getnext(match.blk, match.op)
         if (!dst || src === null || !next) continue
 
-        // if we are the only place someone stores to the target reg...
-        // NOTE: this is SSA, not three-address code: all regs are stored to exactly once (i think)
-        if (findall([match.blk], op => usesfor(op, dst, 'store')).length != 1) continue
-
-        // and this register is used exactly once...
-        // TODO: is that a requirement?
-        if (findall(blocks, op => usesfor(op, dst, 'load')).length == 1) continue
-
-        // and the next operation uses this new register...
+        // if the next operation uses this new register...
         if (!usesfor(next, dst, 'load')) continue
 
         // then we forward the argument
         remap_args('load', next, arg => (reg(arg) && reg(arg) == dst ? { arg: src } : null))
+    }
+    // remove pointless handleref to reg moves
+    for (const match of findall(blocks, op => op.op == Opcode.GetHandle)) {
+        const r = reg(match.op.args[0])
+        if (!r) continue
+
+        // if we are the only place someone stores to the target reg...
+        if (findall(blocks, op => usesfor(op, r, 'load')).length != 0) continue
+
+        // then remove this gethandle
+        match.blk.ops = match.blk.ops.filter(e => e != match.op)
     }
     // remove unused local/global loads
     for (const match of findall(blocks, op => op.op == Opcode.LdGlob || op.op == Opcode.LdLoc)) {
@@ -666,6 +670,7 @@ const opcost = {
     BindArgument: 0,
     AsmSetSlot: 1,
     AsmGetSlot: 1,
+    GetHandle: 1,
 }
 const condcost = {
     Always: 0.5,

@@ -28,6 +28,7 @@ function typename(ty: Type) {
     if (ty == PrimitiveType.Null) return 'null'
     if (ty == PrimitiveType.Float) return 'float'
     if (ty == PrimitiveType.String) return 'string'
+    if (ty == PrimitiveType.Handle) return 'handle'
     if (typeof ty == 'object' && 'name' in ty) return 'struct{' + ty.name + '}'
     return '<unknown>'
 }
@@ -186,10 +187,7 @@ function continueBlockCheck(
                 break
             case Opcode.NewObject:
                 if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
-                    console.log(
-                        'typechk: NewObject: SSA invalid: output is not a reg: %o',
-                        op.args[0]
-                    )
+                    console.log('typechk: NewObject: SSA invalid: output is not a reg: %o', op.args[0])
                     checked = false
                     return
                 }
@@ -233,14 +231,9 @@ function continueBlockCheck(
             }
             case Opcode.SetProp: {
                 const target = ltypes.get((<{ reg: number }>op.args[1]).reg)
-                ltypes.set(
-                    (<{ reg: number }>op.args[0]).reg,
-                    ltypes.get((<{ reg: number }>op.args[1]).reg)
-                )
+                ltypes.set((<{ reg: number }>op.args[0]).reg, ltypes.get((<{ reg: number }>op.args[1]).reg))
                 if (typeof target != 'object') {
-                    console.log(
-                        'error: expected compund type but you decided not to give me one big sad'
-                    )
+                    console.log('error: expected compund type but you decided not to give me one big sad')
                     checked = false
                     break
                 }
@@ -254,12 +247,7 @@ function continueBlockCheck(
                 const pty = target.members.get(prop)
                 if (!sameType(ity, pty)) {
                     checked = false
-                    reportTypeDiff(
-                        pty,
-                        ity,
-                        `cannot set property {} of type %a to a value of type %b`,
-                        prop
-                    )
+                    reportTypeDiff(pty, ity, `cannot set property {} of type %a to a value of type %b`, prop)
                 }
                 break
             }
@@ -283,6 +271,14 @@ function continueBlockCheck(
                 }
                 ltypes.set(op.args[0].reg, opTypes[<string>op.args[1]])
                 break
+            case Opcode.GetHandle:
+                if (typeof op.args[0] != 'object' || !('reg' in op.args[0])) {
+                    console.log('typechk: GetHandle: SSA invalid: output is not a reg: %o', op.args[0])
+                    checked = false
+                    return
+                }
+                ltypes.set(op.args[0].reg, PrimitiveType.Handle)
+                break
             case Opcode.TargetOp:
                 // target ops are assumed to be fine
                 // we need to set up the outputs though
@@ -299,7 +295,7 @@ function continueBlockCheck(
             case Opcode.Asm:
                 break
             case Opcode.AsmGetSlot:
-                const [_to, _slot, nam, kind] = op.args    
+                const [_to, _slot, nam, kind] = op.args
                 const out = <{ reg: number }>op.args[0]
                 if (kind == Opcode.LdGlob) {
                     if (!gTy.has(<string>nam)) {
@@ -379,11 +375,7 @@ function continueBlockCheck(
                         console.log(
                             `error: ${op.pos}: function ${tgd}/${callargs.length} cannot be called because parameters are incorrect.`
                         )
-                        reportTypeDiff(
-                            fndata.args[i],
-                            immtype(callargs[i], ltypes),
-                            `here: %a vs %b`
-                        )
+                        reportTypeDiff(fndata.args[i], immtype(callargs[i], ltypes), `here: %a vs %b`)
                         checked = false
                         return
                     }
@@ -405,15 +397,7 @@ export function checkAllTypes(units: [SSAUnit, Map<string, SSAUnit>]) {
     const gfuncs = new Map()
     const [root, funcs] = units
     globalRegisterTypeMap.clear()
-    continueBlockCheck(
-        root.startBlock,
-        '_main',
-        '_init',
-        new Map<number, Type>(),
-        null,
-        gtypes,
-        gfuncs
-    )
+    continueBlockCheck(root.startBlock, '_main', '_init', new Map<number, Type>(), null, gtypes, gfuncs)
     if (checked) performStructureExpansion(root.blocks, globalRegisterTypeMap)
     for (const [fnnm, u] of funcs) {
         globalRegisterTypeMap.clear()

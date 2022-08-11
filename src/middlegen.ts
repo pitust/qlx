@@ -52,6 +52,9 @@ export enum Opcode {
     GetProp,
     SetProp,
 
+    GetHandle,
+    GetNullHandle,
+
     AsmPinArgument,
     AsmSetSlot,
     AsmGetSlot,
@@ -74,6 +77,7 @@ export enum PrimitiveType {
     Float,
     String,
     Void,
+    Handle,
     Null,
 }
 import { Options } from './options'
@@ -175,6 +179,16 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
     if (node.type == 'number') {
         return +thestr(node.children[0])
     }
+    if (node.type == 'handle') {
+        const reg = getreg()
+        ctx.currentBlock.ops.push({
+            op: Opcode.GetHandle,
+            args: [{ reg }, thestr(node.children[0])],
+            pos: node.pos,
+            meta,
+        })
+        return { reg }
+    }
     if (node.type == 'callnode') {
         const [tgdobj, callobj] = node.children
         const tgd = expand(ctx, thestr(tgdobj))
@@ -230,6 +244,16 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
         })
         return { reg }
     }
+    if (node.type == 'strlit') {
+        const reg = getreg()
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: Opcode.TargetOp,
+            args: ['_lookupblox', { reg }, JSON.stringify(thestr(node.children[0]))],
+        })
+        return { reg }
+    }
     if (node.type == 'memread') {
         const cell = doGenerateExpr(theast(node.children[0]), ctx)
         const addr = doGenerateExpr(theast(node.children[1]), ctx)
@@ -273,6 +297,7 @@ function doGenerateExpr(node: ast, ctx: SSAGenCtx, isCallStatement: boolean = fa
 function doGenerateType(node: ast): { type: Type } {
     if (node.type == 'floatty') return { type: PrimitiveType.Float }
     if (node.type == 'voidty') return { type: PrimitiveType.Void }
+    if (node.type == 'handlety') return { type: PrimitiveType.Handle }
     if (node.type == 'namedty') return { type: name2type.get(thestr(node.children[0])) }
     if (node.type == 'idtype') return { type: name2type.get(thestr(node.children[0])) }
     assert(false, 'TODO: type ' + node.type)
@@ -294,7 +319,7 @@ const cgprefix = (
 )(0)
 const blockre = new RegExp('^(' + blocks.join('|') + ')[1-9][0-9]*$')
 function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SSAOp['meta']) {
-    let p = options.frontend_qlxasm ? '' : cgprefix()+':',
+    let p = options.frontend_qlxasm ? '' : cgprefix() + ':',
         ps = p.replace('asmcg', 'asmslot')
     function idmap(x: string): string {
         if (blockre.test(x)) return x
@@ -333,6 +358,9 @@ function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SS
         }
         if (op.type == 'asm.num') {
             return `${ri}${op.children[0]}`
+        }
+        if (op.type == 'asm.handle') {
+            return `${selector}${op.children[0]}`
         }
 
         console.log('TODO asmop:')
@@ -390,6 +418,14 @@ function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SS
                     pos: n.pos,
                 },
             ])
+        } else if (n.type == 'asm.printflush') {
+            asmcode.push([
+                `${opc}printflush ${asmop(theast(n.children[0]))}`,
+                {
+                    meta: { line: n.codeline, range: n.range },
+                    pos: n.pos,
+                },
+            ])
         } else if (n.type == 'asm.setout') {
             asmcode.push([
                 `${opc}set ${asmout(theast(n.children[0]))} ${asmop(theast(n.children[1]))}`,
@@ -428,7 +464,7 @@ function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SS
             args: [e[0]],
             pos: e[1].pos,
             meta: e[1].meta,
-        })),
+        }))
     )
     if (!options.frontend_qlxasm) {
         c.currentBlock.ops.push({
@@ -438,9 +474,7 @@ function cgInlineAsm(c: SSAGenCtx, nodes: ast[], end: ast, pos: string, meta: SS
             meta: { line: end.codeline, range: end.range },
         })
     }
-    c.currentBlock.ops.push(
-        ...postsync
-    )
+    c.currentBlock.ops.push(...postsync)
 }
 function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
     function pushOp(op: SSAOp) {
@@ -575,7 +609,23 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
         if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
         return
     }
-    if (node.type == 'let') {
+    if (node.type == 'typedlet2') {
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.isGlobal ? Opcode.TypeGlob : Opcode.TypeLoc,
+            args: [thestr(node.children[0]), doGenerateType(theast(node.children[1]))],
+        })
+        pushOp({
+            meta,
+            pos: node.pos,
+            op: ctx.isGlobal ? Opcode.StGlob : Opcode.StLoc,
+            args: [thestr(node.children[0]), doGenerateExpr(theast(node.children[2]), ctx)],
+        })
+        if (ctx.isGlobal) ctx.glob.add(thestr(node.children[1]))
+        return
+    }
+    if (node.type == 'varlet2') {
         pushOp({
             meta,
             pos: node.pos,
@@ -603,6 +653,15 @@ function doGenerateSSA(node: ast, ctx: SSAGenCtx) {
                 pos: node.pos,
                 op: Opcode.TargetOp,
                 args: ['print.direct', thestr(theast(node.children[0]).children[0])],
+            })
+            return
+        } else if (theast(node.children[0]).type == 'strlit') {
+            // direct emission
+            pushOp({
+                meta,
+                pos: node.pos,
+                op: Opcode.TargetOp,
+                args: ['print.direct', JSON.stringify(thestr(theast(node.children[0]).children[0]))],
             })
             return
         } else {

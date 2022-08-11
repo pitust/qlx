@@ -1,10 +1,2 @@
-
-// fn func { } -> float
-//     return 3
-// end
-
-// print func/0
-fn func() -> float {
-    return 3;
-}
-print func();
+print "print/printflush test...";
+asm { printFlush(@message1); }

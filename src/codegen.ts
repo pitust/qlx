@@ -160,6 +160,8 @@ function generateUnit(mod: string, fn: string, unit: SSAUnit, writeCode: (s: str
                 )
             } else if (op.op == Opcode.AsmGetSlot) {
                 code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${op.args[1]}`)
+            } else if (op.op == Opcode.GetHandle) {
+                code.push(`    ${fmt.assign}set ${immref(op.args[0])} ${op.args[1]}`)
             } else {
                 console.log(`error: unknown op:`, Opcode[op.op], ...op.args)
                 process.exit(2)
