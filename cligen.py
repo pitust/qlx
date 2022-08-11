@@ -19,8 +19,9 @@ options = {
     'gen2': 'Enable WIP gen2 code generation, in preparation for machine code',
     'prg': 'Enable experimental less-optimizing prg codegen (pretty reasonable codegen)',
 
-    'frontend=modern': '[!frontend=qlxasm] Use the modern QLX frontend',
-    'frontend=qlxasm': '[!frontend=modern] Use QLX as a fancy macro assembler',
+    'frontend=legacy': '[!frontend=qlxasm] [!frontend=modern] Use the modern QLX frontend',
+    'frontend=modern': '[!frontend=qlxasm] [!frontend=legacy] Use the modern QLX frontend',
+    'frontend=qlxasm': '[!frontend=modern] [!frontend=legacy] Use QLX as a fancy macro assembler',
 
     'dump=ast': 'Dump AST',
     'dump=prg-dfg': '[prg] Dump the PRG data-flow graph',

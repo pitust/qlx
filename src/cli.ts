@@ -26,6 +26,9 @@ export function onCLIParseComplete(o: Options, input: string, output: string | n
         options.mergeBlocks = true
         options.max = true
     }
+    if (!options.frontend_modern && !options.frontend_qlxasm && !options.frontend_legacy) {
+        options.frontend_modern = true
+    }
 
     const ast = options.frontend_modern
         ? parseprogramv2(input, readFileSync(input).toString())

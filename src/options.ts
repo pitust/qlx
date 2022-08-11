@@ -13,6 +13,7 @@ export interface Options {
     eliminateBranches: boolean
     eliminateDeadCode: boolean
     forward: boolean
+    frontend_legacy: boolean
     frontend_modern: boolean
     frontend_qlxasm: boolean
     gen2: boolean

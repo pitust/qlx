@@ -14,6 +14,7 @@ const options = {
     eliminateBranches: false,
     eliminateDeadCode: false,
     forward: false,
+    frontend_legacy: false,
     frontend_modern: false,
     frontend_qlxasm: false,
     gen2: false,
@@ -61,6 +62,7 @@ for (let arg of process.argv.slice(2)) {
     else if (arg == '-feliminate-branches') options.eliminateBranches = true; 
     else if (arg == '-feliminate-dead-code') options.eliminateDeadCode = true; 
     else if (arg == '-fforward') options.forward = true; 
+    else if (arg == '-ffrontend=legacy') options.frontend_legacy = true; 
     else if (arg == '-ffrontend=modern') options.frontend_modern = true; 
     else if (arg == '-ffrontend=qlxasm') options.frontend_qlxasm = true; 
     else if (arg == '-fgen2') options.gen2 = true; 
@@ -103,10 +105,12 @@ function _printHelpMessage() {
     console.log("    -feliminate-branches           - Eliminate branches in cases where fallthrough is enough");
     console.log("    -feliminate-dead-code          - Eliminate some dead instructions.");
     console.log("    -fforward                      - Forward moves when used once");
+    console.log("    -ffrontend=legacy              - Use the modern QLX frontend");
+    console.log("                                     \x1b[1mConflicts with\x1b[0m -ffrontend=qlxasm and -ffrontend=modern");
     console.log("    -ffrontend=modern              - Use the modern QLX frontend");
-    console.log("                                     \x1b[1mConflicts with\x1b[0m -ffrontend=qlxasm");
+    console.log("                                     \x1b[1mConflicts with\x1b[0m -ffrontend=qlxasm and -ffrontend=legacy");
     console.log("    -ffrontend=qlxasm              - Use QLX as a fancy macro assembler");
-    console.log("                                     \x1b[1mConflicts with\x1b[0m -ffrontend=modern");
+    console.log("                                     \x1b[1mConflicts with\x1b[0m -ffrontend=modern and -ffrontend=legacy");
     console.log("    -fgen2                         - Enable WIP gen2 code generation, in preparation for machine code");
     console.log("    -finline                       - Inline small functions");
     console.log("                                     \x1b[1mNeeds\x1b[0m -fraw-arg-refs");
@@ -125,8 +129,12 @@ function _printHelpMessage() {
 }
 if (options.dump_prgDfg && !options.prg) _printHelpMessage();
 if (options.dump_prgDfgExpandvars && !options.dump_prgDfg) _printHelpMessage();
+if (options.frontend_legacy && options.frontend_qlxasm) _printHelpMessage();
+if (options.frontend_legacy && options.frontend_modern) _printHelpMessage();
 if (options.frontend_modern && options.frontend_qlxasm) _printHelpMessage();
+if (options.frontend_modern && options.frontend_legacy) _printHelpMessage();
 if (options.frontend_qlxasm && options.frontend_modern) _printHelpMessage();
+if (options.frontend_qlxasm && options.frontend_legacy) _printHelpMessage();
 if (options.inline && !options.rawArgRefs) _printHelpMessage();
 if (options.noEnd && !options.noSafeAbort) _printHelpMessage();
 if (!input || options.target == 'none') _printHelpMessage();
